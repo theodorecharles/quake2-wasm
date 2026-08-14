@@ -28,7 +28,8 @@
 <main>
   <section id="launcher" class="panel">
     <h1>QUAKE II</h1>
-    <p>Native Yamagi Quake II, compiled to WebAssembly. This server must be configured with owner-provided retail data.</p>
+    <p>Native Yamagi Quake II, compiled to WebAssembly. Select your legally acquired <code>baseq2</code> folder once; its PAKs stay in private browser storage and are never uploaded to this server.</p>
+    <label>Game data folder <input id="gameData" type="file" multiple webkitdirectory></label>
     <label>Player name <input id="playerName" maxlength="32" autocomplete="nickname" value="Ranger"></label>
     <details>
       <summary>Advanced settings</summary>
@@ -44,8 +45,8 @@
       </label>
       <label><span><input id="dynamic" type="checkbox" checked> Dynamic quality</span></label>
     </details>
-    <button id="play">Play</button>
-    <p id="status" class="status">Engine code is not loaded until Play.</p>
+    <button id="play" disabled>Play</button>
+    <p id="status" class="status">Checking browser-private game data…</p>
   </section>
 
   <section id="runtime" hidden>
@@ -66,6 +67,64 @@
   const qualitySelect = document.querySelector("#quality");
   const fpsSelect = document.querySelector("#fps");
   const dynamicToggle = document.querySelector("#dynamic");
+  const gameDataInput = document.querySelector("#gameData");
+  const ownerCacheName = "quake2-owner-data-v1";
+  const requiredPaks = new Map([
+    ["pak0.pak", { path: "baseq2/pak0.pak", size: 183997730, sha256: "1ce99eb11e7e251ccdf690858effba79836dbe5e32a4083ad00a13ecda491679" }],
+    ["pak1.pak", { path: "baseq2/pak1.pak", size: 12992754, sha256: "678210ecd1b27dde1c645660333a1a7b139d849425793859657f804d379b62ad" }],
+    ["pak2.pak", { path: "baseq2/pak2.pak", size: 45055, sha256: "cb88d584ef939d08e24433a6cf86274737303fac2bbd94415927a75e6b269dd8" }]
+  ]);
+  let dataReady = false;
+
+  function ownerCacheKey(entry) {
+    return new URL(`/__quake2_owner_data__/${entry.path}?sha256=${entry.sha256}`, location.origin).href;
+  }
+
+  function hex(bytes) {
+    return Array.from(new Uint8Array(bytes), byte => byte.toString(16).padStart(2, "0")).join("");
+  }
+
+  async function validatePak(file, expected) {
+    if (file.size !== expected.size) throw new Error(`${file.name}: expected ${expected.size} bytes, got ${file.size}`);
+    const header = new Uint8Array(await file.slice(0, 4).arrayBuffer());
+    if (header[0] !== 0x50 || header[1] !== 0x41 || header[2] !== 0x43 || header[3] !== 0x4b) {
+      throw new Error(`${file.name}: invalid PACK header`);
+    }
+    const digest = hex(await crypto.subtle.digest("SHA-256", await file.arrayBuffer()));
+    if (digest !== expected.sha256) throw new Error(`${file.name}: unsupported or corrupt PAK`);
+  }
+
+  async function cacheOwnerFiles(files) {
+    const byName = new Map(Array.from(files, file => [file.name.toLowerCase(), file]));
+    const cache = await caches.open(ownerCacheName);
+    for (const [name, expected] of requiredPaks) {
+      const file = byName.get(name);
+      if (!file) throw new Error(`Missing ${name}`);
+      statusView.textContent = `Validating ${name}…`;
+      await validatePak(file, expected);
+      await cache.put(ownerCacheKey(expected), new Response(file, {
+        headers: {
+          "Content-Type": "application/octet-stream",
+          "X-Quake2-Size": String(expected.size),
+          "X-Quake2-SHA256": expected.sha256
+        }
+      }));
+    }
+    dataReady = true;
+    playButton.disabled = false;
+    statusView.textContent = "Game data is ready in browser-private storage.";
+  }
+
+  async function restoreOwnerDataState() {
+    if (!("caches" in globalThis)) throw new Error("This browser does not provide private CacheStorage");
+    const cache = await caches.open(ownerCacheName);
+    for (const expected of requiredPaks.values()) {
+      const response = await cache.match(ownerCacheKey(expected));
+      if (!response || response.headers.get("X-Quake2-Size") !== String(expected.size) ||
+          response.headers.get("X-Quake2-SHA256") !== expected.sha256) return false;
+    }
+    return true;
+  }
 
   nameInput.value = localStorage.getItem("quake2.playerName") || "Ranger";
   try {
@@ -81,6 +140,26 @@
     consoleView.textContent += `${message}\n`;
     consoleView.scrollTop = consoleView.scrollHeight;
   }
+
+  gameDataInput.addEventListener("change", async event => {
+    playButton.disabled = true;
+    try {
+      await cacheOwnerFiles(event.target.files);
+    } catch (error) {
+      dataReady = false;
+      statusView.textContent = `Game data rejected: ${error.message}`;
+    }
+  });
+
+  restoreOwnerDataState().then(ready => {
+    dataReady = ready;
+    playButton.disabled = !ready;
+    statusView.textContent = ready
+      ? "Game data is ready in browser-private storage."
+      : "Select the folder containing pak0.pak, pak1.pak, and pak2.pak.";
+  }).catch(error => {
+    statusView.textContent = `Browser storage unavailable: ${error.message}`;
+  });
 
   function loadEngineScript() {
     return new Promise((resolve, reject) => {
@@ -158,6 +237,7 @@
   }
 
   playButton.addEventListener("click", async () => {
+    if (!dataReady) return;
     const playerName = nameInput.value.trim() || "Ranger";
     const profile = qualitySelect.value;
     const fps = fpsSelect.value;
@@ -174,7 +254,7 @@
 
       const module = await createQuake2Module({
         canvas,
-        quake2AssetManifest: "assets/manifest.json",
+        quake2OwnerCacheName: ownerCacheName,
         arguments: ["-datadir", "/data", "+set", "name", playerName, ...graphicsArguments(profile, fps)],
         print: message => { console.log(message); appendLog(message); },
         printErr: message => { console.error(message); appendLog(`ERROR: ${message}`); },

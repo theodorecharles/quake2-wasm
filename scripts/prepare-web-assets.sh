@@ -2,12 +2,16 @@
 set -euo pipefail
 
 repo_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-source_dir="${1:-/home/ted/.steam/debian-installation/steamapps/common/Quake 2/baseq2}"
-output_dir="${2:-$repo_dir/build-web/release/assets}"
-asset_dir="$output_dir/baseq2"
+source_dir="${1:-${QUAKE2_DATA_DIR:-}}"
+output_dir="${2:-$repo_dir/runtime}"
 manifest_tmp="$output_dir/.manifest.json.tmp"
 
-mkdir -p "$asset_dir"
+if [[ -z "$source_dir" ]]; then
+  echo "Pass the owner-installed baseq2 directory, or set QUAKE2_DATA_DIR." >&2
+  exit 1
+fi
+
+mkdir -p "$output_dir"
 
 entries=()
 declare -A expected_size=(
@@ -41,7 +45,6 @@ for name in pak0.pak pak1.pak pak2.pak; do
     exit 1
   fi
   digest="$(sha256sum "$source_file" | cut -d ' ' -f 1)"
-  ln -sfn "$source_file" "$asset_dir/$name"
   entries+=("    {\"path\":\"baseq2/$name\",\"size\":$size,\"sha256\":\"$digest\"}")
 done
 
@@ -56,4 +59,4 @@ done
 } > "$manifest_tmp"
 mv "$manifest_tmp" "$output_dir/manifest.json"
 
-echo "Prepared ${#entries[@]} owner-supplied PAK files under $output_dir"
+echo "Validated ${#entries[@]} owner-supplied PAK files; wrote private manifest to $output_dir/manifest.json"

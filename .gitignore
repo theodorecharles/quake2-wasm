@@ -3,6 +3,7 @@
 /release/
 /runtime/
 /artifacts/
+/runtime/
 *.mk
 *.user
 *.d

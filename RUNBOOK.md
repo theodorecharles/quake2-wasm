@@ -25,8 +25,8 @@ bundle. The generated artifacts are:
 - `build-web/release/quake2.js`
 - `build-web/release/quake2.wasm`
 
-The static launcher, generated manifest, HTTP delivery, JavaScript syntax, and
-WebAssembly structure have been verified. A live Chrome run has not yet been
+The static launcher, private owner-data path, HTTP code delivery, JavaScript
+syntax, and WebAssembly structure have been verified. A live Chrome run has not yet been
 completed because the Chrome control connection reported exactly:
 
 ```text
@@ -45,7 +45,7 @@ milestones until that smoke test supplies evidence.
 | Substantial native source compiles | Passed | 137 C compilation/link steps complete under Emscripten |
 | `.wasm` and launcher produced | Passed | `quake2.js` and validated `quake2.wasm` in `build-web/release` |
 | Engine initializes in Chrome | Pending | Chrome connection unavailable during this lane |
-| Retail resources load in engine | Pending | manifest/HTTP/header/size validation passed; runtime load not observed |
+| Retail resources load in engine | Pending | local header/size/hash validation passed; runtime load not observed |
 | Authentic title/menu appears | Pending | renderer and data are linked/prepared but not visually observed |
 | Single-player level renders | Pending | in-process loopback implementation is present but not exercised in Chrome |
 | Keyboard/mouse work | Pending | native SDL2 backend is linked but not manually exercised |
@@ -60,9 +60,8 @@ launcher: name + graphics choices
         | Play (engine JS is deliberately loaded only here)
         v
 Emscripten preRun
-  |- validate exact local manifest (pak0/pak1/pak2)
-  |- fetch same-origin owner PAKs, streaming into read-only /data/baseq2
-  |- reuse content-addressed browser CacheStorage responses
+  |- restore exactly allowlisted pak0/pak1/pak2 from private CacheStorage
+  |- stream them into read-only /data/baseq2 without an HTTP request
   `- mount /persist as browser-local IDBFS
         |
         v
@@ -92,24 +91,29 @@ remote connection cannot work until a WebSocket bridge is implemented.
 
 ## Owner data and browser persistence
 
-The default owner-data source is:
+The owner data found on this workstation is:
 
 ```text
 /home/ted/.steam/debian-installation/steamapps/common/Quake 2/baseq2
 ```
 
-`scripts/prepare-web-assets.sh` requires the registered retail `pak0.pak` and
+The launcher asks the owner to select this folder on first use. It requires the
+registered retail `pak0.pak` and
 the supported 3.20 patch `pak1.pak`/`pak2.pak`. It validates their exact names,
-sizes, `PACK` headers, and Yamagi-documented MD5 values, calculates SHA-256
-values locally, creates ignored symlinks under the web output, and writes the
-local manifest. The retail bytes are not copied into or tracked by Git.
+sizes, `PACK` headers, and pinned SHA-256 values, then stores the validated
+`File` bodies in browser-private CacheStorage. The files are never uploaded,
+placed under the HTTP document root, copied into the build, or tracked by Git.
 
-The browser accepts exactly those three manifest paths and pinned size/SHA
-metadata. It checks HTTP length, streamed length, and the `PACK` header before
-making the files read-only in `/data`. CacheStorage avoids another network
-transfer on later launches. It does not eliminate the current first-milestone
+The engine bootstrap accepts exactly those three cache keys and pinned
+size/SHA metadata. It checks cached length and the `PACK` header before making
+the files read-only in `/data`. CacheStorage avoids another folder selection
+after a hard refresh. It does not eliminate the current first-milestone
 MEMFS copy: roughly 197 MiB of PAK data is materialized again in WASM memory on
 each engine launch.
+
+`scripts/prepare-web-assets.sh` is an optional command-line validator for
+development. It receives an explicit owner directory and writes only an ignored
+manifest under `runtime/`; it never creates web-root symlinks or copies PAKs.
 
 Yamagi's home directory is `/persist`, mounted with IDBFS. Configuration and
 saves are restored before engine initialization and flushed every ten seconds.
@@ -122,8 +126,8 @@ milestone and must remain owner-supplied if added later.
 ## Build
 
 Prerequisites are CMake 3.31+, Ninja, Bash, Node.js for syntax checks, and an
-Emscripten SDK. The script defaults to `/home/ted/emsdk`; set `EMSDK` to select
-another SDK directory.
+active Emscripten SDK. If `emcc` is not already on `PATH`, set `EMSDK_DIR` (or
+`EMSDK`) to the SDK checkout.
 
 ```bash
 cd /home/ted/Development/wasm/quake2-wasm
@@ -133,12 +137,12 @@ cd /home/ted/Development/wasm/quake2-wasm
 The script configures an Emscripten Release build with Ninja and builds the
 `quake2` browser target. It does not package retail data.
 
-## Select owner assets
+## Validate owner assets from the command line (optional)
 
 For the Steam installation detected on this workstation:
 
 ```bash
-./scripts/prepare-web-assets.sh
+./scripts/prepare-web-assets.sh "/home/ted/.steam/debian-installation/steamapps/common/Quake 2/baseq2"
 ```
 
 To explicitly select a different owner-controlled `baseq2` directory:
@@ -148,8 +152,8 @@ To explicitly select a different owner-controlled `baseq2` directory:
 ```
 
 The source must contain the supported `pak0.pak`, `pak1.pak`, and `pak2.pak`.
-The generated manifest and symlinks land in
-`build-web/release/assets/` and remain ignored.
+The generated private manifest lands in `runtime/manifest.json` and remains
+ignored. The normal browser flow does not require this helper.
 
 ## Run
 
@@ -171,17 +175,20 @@ IndexedDB, the WASM MIME type, and WebGL require an HTTP origin.
 Only one portfolio game should own Chrome at a time.
 
 1. Start the server and open `http://127.0.0.1:8082/` in a fresh tab.
-2. Confirm the launcher says `Engine code is not loaded until Play.` and that
-   no `quake2.js`, `quake2.wasm`, manifest, or PAK request occurred yet.
-3. Enter a player name, choose Medium/High/Ultra, choose 30/60/120 FPS, and
+2. On first use, select the owner-installed `baseq2` directory. Confirm the
+   launcher validates all three PAKs and says they are ready in private browser
+   storage. On later hard refreshes, confirm the ready state is restored without
+   selecting the folder again.
+3. Confirm no PAK appears in the Network panel, then enter a player name,
+   choose Medium/High/Ultra, choose 30/60/120 FPS, and
    decide whether Dynamic quality is enabled.
-4. Click **Play**. On the first run, expect progress for three owner PAKs
-   totaling about 197 MiB. Later runs should reuse same-origin CacheStorage.
+4. Click **Play**. Expect private-cache-to-MEMFS progress for three owner PAKs
+   totaling about 197 MiB.
 5. In the on-page console, confirm these stages appear without a fatal error:
 
    ```text
    [quake2-wasm] Restoring browser-local settings and saves…
-   [quake2-wasm] Validating owner-provided Quake II data…
+   [quake2-wasm] Restoring owner-provided Quake II data from browser-private storage…
    [quake2-wasm] Starting Yamagi Quake II…
    [quake2-wasm] browser filesystem ready; starting Yamagi Quake II
    ==== Yamagi Quake II Initialized ====
@@ -208,17 +215,16 @@ The following passed on 2026-08-14:
 
 ```bash
 ./build-web.sh
-./scripts/prepare-web-assets.sh
+./scripts/prepare-web-assets.sh "/home/ted/.steam/debian-installation/steamapps/common/Quake 2/baseq2"
 bash -n build-web.sh scripts/prepare-web-assets.sh
 node --check web/pre.js
 wasm-validate build-web/release/quake2.wasm
 git diff --check
 ```
 
-While the local server was running, HTTP checks passed for the launcher,
-`application/wasm` bundle, three-entry manifest, and owner `pak2.pak` content
-length. A negative asset test also confirmed that an empty owner-data directory
-is rejected.
+While the local server was running, HTTP checks passed for the launcher and
+`application/wasm` bundle. The document root contains no PAK, and the optional
+validator rejects an empty owner-data directory.
 
 ## Browser-facing behavior
 
@@ -231,8 +237,8 @@ is rejected.
 - SDL owns keyboard/mouse events once the canvas is active. Pointer lock is
   requested by the native SDL backend, and Escape releases it through normal
   browser/engine behavior.
-- PAK transfers are same-origin and content-addressed. There is no anonymous
-  upload/PUT endpoint and no public retail-data service in this scaffold.
+- PAKs are selected locally and remain in private browser storage. There is no
+  PAK HTTP route, anonymous upload/PUT endpoint, or public retail-data service.
 
 ## Residual blockers and next work
 

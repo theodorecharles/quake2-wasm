@@ -3,7 +3,7 @@
 Module.preRun = Module.preRun || [];
 Module.preRun.push(function quake2PrepareFilesystem() {
   const dependency = "quake2-assets-and-persistence";
-  const manifestUrl = Module.quake2AssetManifest || "assets/manifest.json";
+  const ownerCacheName = Module.quake2OwnerCacheName || "quake2-owner-data-v1";
   const allowedPaks = new Map([
     ["baseq2/pak0.pak", { size: 183997730, sha256: "1ce99eb11e7e251ccdf690858effba79836dbe5e32a4083ad00a13ecda491679" }],
     ["baseq2/pak1.pak", { size: 12992754, sha256: "678210ecd1b27dde1c645660333a1a7b139d849425793859657f804d379b62ad" }],
@@ -15,19 +15,8 @@ Module.preRun.push(function quake2PrepareFilesystem() {
     console.info(`[quake2-wasm] ${message}`);
   }
 
-  async function responseFor(url) {
-    if (!("caches" in globalThis)) return fetch(url, { cache: "no-cache" });
-
-    const cache = await caches.open("quake2-wasm-assets-v1");
-    const cached = await cache.match(url);
-    if (cached) return cached;
-
-    const response = await fetch(url, { cache: "no-cache" });
-    if (response.ok) {
-      cache.put(url, response.clone()).catch(error =>
-        console.warn("[quake2-wasm] asset cache write failed", error));
-    }
-    return response;
+  function ownerCacheKey(entry) {
+    return new URL(`/__quake2_owner_data__/${entry.path}?sha256=${entry.sha256}`, location.origin).href;
   }
 
   async function streamIntoMemfs(entry) {
@@ -36,15 +25,19 @@ Module.preRun.push(function quake2PrepareFilesystem() {
       throw new Error(`Rejected asset manifest entry: ${JSON.stringify(entry)}`);
     }
 
-    const url = `assets/${entry.path}?v=${entry.sha256}`;
     status(`Preparing ${entry.path} (${Math.ceil(entry.size / 1048576)} MiB)…`);
-    const response = await responseFor(url);
-    if (!response.ok || !response.body) {
-      throw new Error(`${url}: HTTP ${response.status}`);
+    if (!("caches" in globalThis)) {
+      throw new Error("This browser does not provide private CacheStorage");
+    }
+    const cache = await caches.open(ownerCacheName);
+    const response = await cache.match(ownerCacheKey(entry));
+    if (!response || !response.ok || !response.body) {
+      throw new Error(`${entry.path} is not available in browser-private storage; select the game folder again`);
     }
 
-    const contentLength = Number(response.headers.get("content-length"));
-    if (Number.isFinite(contentLength) && contentLength !== entry.size) {
+    const contentLengthHeader = response.headers.get("content-length");
+    const contentLength = Number(contentLengthHeader);
+    if (contentLengthHeader !== null && Number.isFinite(contentLength) && contentLength !== entry.size) {
       throw new Error(`${entry.path}: expected ${entry.size} bytes, server sent ${contentLength}`);
     }
 
@@ -91,20 +84,10 @@ Module.preRun.push(function quake2PrepareFilesystem() {
     status("Restoring browser-local settings and saves…");
     await new Promise((resolve, reject) => FS.syncfs(true, error => error ? reject(error) : resolve()));
 
-    status("Validating owner-provided Quake II data…");
-    const manifestResponse = await fetch(manifestUrl, { cache: "no-cache" });
-    if (!manifestResponse.ok) {
-      throw new Error(`Asset manifest unavailable (${manifestResponse.status})`);
+    status("Restoring owner-provided Quake II data from browser-private storage…");
+    for (const [path, metadata] of allowedPaks) {
+      await streamIntoMemfs({ path, ...metadata });
     }
-
-    const manifest = await manifestResponse.json();
-    if (manifest.schema !== 1 || manifest.game !== "quake2" ||
-        !Array.isArray(manifest.files) || manifest.files.length !== allowedPaks.size ||
-        new Set(manifest.files.map(entry => entry.path)).size !== allowedPaks.size) {
-      throw new Error("Asset manifest has an unsupported shape");
-    }
-
-    for (const entry of manifest.files) await streamIntoMemfs(entry);
     FS.chmod("/data/baseq2", 0o555);
     FS.chmod("/data", 0o555);
     status("Starting Yamagi Quake II…");

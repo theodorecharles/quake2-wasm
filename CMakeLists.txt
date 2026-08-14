@@ -839,6 +839,7 @@ if(EMSCRIPTEN)
 		"--pre-js=${CMAKE_SOURCE_DIR}/web/pre.js")
 	set_target_properties(quake2 PROPERTIES
 		SUFFIX ".js"
+		LINK_DEPENDS "${CMAKE_SOURCE_DIR}/web/pre.js"
 		RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/release)
 	configure_file(web/index.html ${CMAKE_BINARY_DIR}/release/index.html COPYONLY)
 elseif(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
