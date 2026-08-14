@@ -148,6 +148,7 @@
     let busy = false;
     let engineModule = null;
     let resizeTimer = 0;
+    let nextNativeResize = 0;
 
     try {
       playerName.value = localStorage.getItem('wasm-player-name') || localStorage.getItem('quake2.playerName') || 'Ranger';
@@ -389,10 +390,27 @@
             document.documentElement.dataset.quake2ControlsValid = String(mask === 255);
           }
           if (typeof engineModule._Q2Web_RenderWidth === 'function') {
+            const renderWidth = engineModule._Q2Web_RenderWidth();
+            const renderHeight = engineModule._Q2Web_RenderHeight();
             document.documentElement.dataset.quake2RenderSize = [
-              engineModule._Q2Web_RenderWidth(),
-              engineModule._Q2Web_RenderHeight()
+              renderWidth,
+              renderHeight
             ].join('x');
+            const viewport = browserViewport();
+            if (typeof engineModule._Q2Web_ResizeViewport === 'function' &&
+                (renderWidth !== viewport.width || renderHeight !== viewport.height) &&
+                performance.now() >= nextNativeResize) {
+              nextNativeResize = performance.now() + 750;
+              engineModule._Q2Web_ResizeViewport(viewport.width, viewport.height);
+            }
+          }
+          if (typeof engineModule._Q2Web_ViewWidth === 'function') {
+            document.documentElement.dataset.quake2View = [
+              engineModule._Q2Web_ViewWidth(),
+              engineModule._Q2Web_ViewHeight(),
+              engineModule._Q2Web_FovX100() / 100,
+              engineModule._Q2Web_FovY100() / 100
+            ].join(',');
           }
         }, 250);
       } catch (error) {

@@ -95,6 +95,30 @@ Q2Web_RenderHeight(void)
 	return viddef.height;
 }
 
+EMSCRIPTEN_KEEPALIVE int
+Q2Web_ViewWidth(void)
+{
+	return cl.refdef.width;
+}
+
+EMSCRIPTEN_KEEPALIVE int
+Q2Web_ViewHeight(void)
+{
+	return cl.refdef.height;
+}
+
+EMSCRIPTEN_KEEPALIVE int
+Q2Web_FovX100(void)
+{
+	return (int)(cl.refdef.fov_x * 100.0f);
+}
+
+EMSCRIPTEN_KEEPALIVE int
+Q2Web_FovY100(void)
+{
+	return (int)(cl.refdef.fov_y * 100.0f);
+}
+
 EMSCRIPTEN_KEEPALIVE void
 Q2Web_ApplyQuality(int level)
 {
