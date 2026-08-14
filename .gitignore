@@ -1,0 +1,12 @@
+# quake2-wasm build and local/runtime data
+build/
+release/
+references/
+data/
+runtime/
+artifacts/runtime/
+*.pak
+*.PAK
+*.sav
+*.dm2
+.env
