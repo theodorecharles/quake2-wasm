@@ -842,6 +842,7 @@ if(EMSCRIPTEN)
 		LINK_DEPENDS "${CMAKE_SOURCE_DIR}/web/pre.js"
 		RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/release)
 	configure_file(web/index.html ${CMAKE_BINARY_DIR}/release/index.html COPYONLY)
+	configure_file(web/wasm-game-data.json ${CMAKE_BINARY_DIR}/release/wasm-game-data.json COPYONLY)
 elseif(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
 	add_executable(yquake2 WIN32 ${Client-Source} ${Client-SDL-Source} ${Client-Header}
 			${Platform-Specific-Source} ${Backends-Generic-Source})

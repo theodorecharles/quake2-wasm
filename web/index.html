@@ -30,39 +30,41 @@
       <div data-shell-card>
         <p data-shell-kicker>id Tech 2</p>
         <h1 data-shell-title>Quake II</h1>
-        <p>Play the native Yamagi engine in your browser. Your legally owned
-          PAK files are verified locally, cached privately in this browser, and
-          never uploaded.</p>
+        <p>Play Quake II in your browser. The container stores your legally
+          owned PAKs once; this browser also caches them for fast reloads.</p>
 
         <label data-shell-identity>Player name
-          <input id="player-name" maxlength="32" autocomplete="nickname" value="Ranger">
+          <input id="player-name" data-shell-player-name maxlength="32" autocomplete="nickname" value="Ranger">
         </label>
 
         <details data-shell-advanced>
           <summary>Advanced settings</summary>
           <div data-shell-graphics>
             <label>Graphics ceiling
-              <select id="quality">
+              <select id="quality" data-shell-quality-profile>
                 <option value="medium">Medium</option>
                 <option value="high" selected>High</option>
                 <option value="ultra">Ultra</option>
               </select>
             </label>
             <label>Frame-rate target
-              <select id="fps">
+              <select id="fps" data-shell-target-fps>
                 <option value="30">30 FPS</option>
                 <option value="60" selected>60 FPS</option>
                 <option value="120">120 FPS</option>
               </select>
             </label>
-            <label><span><input id="dynamic" type="checkbox" checked> Dynamic quality</span></label>
+            <label><span><input id="dynamic" data-shell-dynamic-quality type="checkbox" checked> Dynamic quality</span></label>
           </div>
         </details>
 
         <div id="launcher-actions">
-          <button id="choose-folder" type="button" disabled>Choose baseq2 folder</button>
-          <button id="choose-files" type="button" disabled>Choose PAK files</button>
-          <button id="forget-data" type="button" disabled>Forget cached data</button>
+          <label data-shell-setup-token-field hidden>Container setup token
+            <input data-shell-setup-token type="password" autocomplete="off">
+          </label>
+          <button id="choose-folder" data-shell-provisioning type="button" disabled>Install from baseq2 folder</button>
+          <button id="choose-files" data-shell-provisioning type="button" disabled>Install PAK files</button>
+          <button id="forget-data" data-shell-data-ready type="button" disabled>Clear browser cache</button>
           <button id="play" type="button" disabled>Play Quake II</button>
         </div>
         <p id="status" data-shell-status role="status">Loading Quake II engine gate…</p>
@@ -114,18 +116,51 @@
     const folderFallback = document.querySelector('#folder-fallback');
     const filesFallback = document.querySelector('#files-fallback');
 
+    let preparedData = null;
+    let busy = false;
+    let engineModule = null;
+    let resizeTimer = 0;
+    let nextNativeResize = 0;
+    let reportedState = '';
+    let qualityController = null;
+
+    function nativeRuntimeState() {
+      if (!engineModule || typeof engineModule._Q2Web_RuntimeState !== 'function') return 'menu';
+      return ['menu', 'gameplay', 'paused'][engineModule._Q2Web_RuntimeState()] || 'menu';
+    }
+
     const shell = WolfWasmShell.configure({
       launcher: '#launcher',
       runtime: '#runtime',
       canvas,
-      aspect: 16 / 9,
-      fit: 'fill',
+      displayMode: 'dynamic',
       pixelated: false,
       graphics: true,
       identity: true,
       advanced: true,
       maxDpr: 2,
-      pointerLock: true
+      pointerLock: true,
+      readEngineState: nativeRuntimeState,
+      onCaptureLost() {
+        if (!engineModule) return;
+        engineModule._Q2Web_SetInputCaptured(0);
+        engineModule._Q2Web_EnsureMenu();
+      },
+      onNativeResizeRequest(detail) {
+        if (!engineModule || typeof engineModule._Q2Web_ResizeViewport !== 'function') return;
+        window.clearTimeout(resizeTimer);
+        resizeTimer = window.setTimeout(() => {
+          engineModule?._Q2Web_ResizeViewport(detail.requestedWidth, detail.requestedHeight);
+        }, 250);
+      },
+      preferences: {
+        namespace: 'quake2',
+        playerName: '#player-name',
+        qualityProfile: '#quality',
+        targetFps: '#fps',
+        dynamicQuality: '#dynamic',
+        defaults: { playerName: 'Ranger', qualityProfile: 'high', targetFps: 60, dynamicQuality: true }
+      }
     });
     const cache = WolfWasmShell.createDataCache({
       namespace: 'quake2-registered',
@@ -144,25 +179,13 @@
       }))
     });
 
-    let preparedData = null;
-    let busy = false;
-    let engineModule = null;
-    let resizeTimer = 0;
-    let nextNativeResize = 0;
-
-    try {
-      playerName.value = localStorage.getItem('wasm-player-name') || localStorage.getItem('quake2.playerName') || 'Ranger';
-      const saved = JSON.parse(localStorage.getItem('quake2.graphics') || 'null');
-      if (saved && ['medium', 'high', 'ultra'].includes(saved.profile)) qualitySelect.value = saved.profile;
-      if (saved && ['30', '60', '120'].includes(String(saved.fps))) fpsSelect.value = String(saved.fps);
-      if (saved) dynamicToggle.checked = saved.dynamic !== false;
-    } catch (_) {}
+    const containerData = WolfWasmShell.createContainerDataClient();
 
     function setBusy(value) {
       busy = value;
       folderButton.disabled = value;
       filesButton.disabled = value;
-      forgetButton.disabled = value;
+      forgetButton.disabled = value || !preparedData;
       playButton.disabled = value || !preparedData;
       playerName.disabled = value;
     }
@@ -190,26 +213,22 @@
       if (await sha256Hex(file) !== spec.sha256) throw new Error(`${spec.mountName} failed SHA-256 verification.`);
     }
 
-    function missingSource(policy) {
-      const error = new Error(`Choose your baseq2 folder or the three required PAK files (${policy.key} is not cached).`);
-      error.code = 'OWNER_DATA_MISSING';
-      throw error;
-    }
-
-    async function loopbackSource(policy) {
-      const response = await fetch(`/local-data/${encodeURIComponent(policy.names[0])}`, { cache: 'no-store' });
-      if (!response.ok) throw new Error(`Local ${policy.key} is unavailable (HTTP ${response.status}).`);
-      return new File([await response.blob()], policy.names[0], { lastModified: 0 });
-    }
-
     async function prepare(source, label) {
       if (busy || engineModule) return;
       setBusy(true);
       errorView.textContent = '';
       try {
-        preparedData = await ownerData.load(source, {
+        if (source) await containerData.provision(source, {
+          onProgress(detail) { message(`Installing ${detail.key} in this container…`); }
+        });
+        await containerData.applyGate();
+        preparedData = await containerData.load(ownerData, {
           onProgress(detail) {
             if (detail.phase === 'checking-cache') message(`Checking private browser cache for ${detail.key}…`);
+            if (detail.phase === 'downloading') {
+              const percent = detail.total ? Math.floor(detail.received * 100 / detail.total) : 0;
+              message(`Caching ${detail.key} from this container… ${percent}%`);
+            }
             if (detail.phase === 'restored') message(`Restored ${detail.key} from this browser…`);
             if (detail.phase === 'cached') message(`Cached ${detail.key} for future visits…`);
           }
@@ -217,8 +236,8 @@
         const restored = preparedData.entries.every(entry => entry.cached);
         document.documentElement.dataset.wasmDataSource = restored ? 'cache' : label;
         message(restored
-          ? 'Registered Quake II data restored from this browser. Ready to play.'
-          : 'Registered Quake II data verified and cached. Ready to play.');
+          ? 'Quake II data restored from this browser. Ready to play.'
+          : 'Quake II data downloaded from this container and cached. Ready to play.');
       } catch (error) {
         preparedData = null;
         message(error instanceof Error ? error.message : String(error), error?.code !== 'OWNER_DATA_MISSING');
@@ -264,21 +283,19 @@
         await ownerData.clear();
         preparedData = null;
         document.documentElement.dataset.wasmDataSource = 'none';
-        message('Cached Quake II data removed. Choose your baseq2 folder or PAK files.');
+        message('Browser cache cleared. Restoring from this container…');
       } catch (error) {
         message(error instanceof Error ? error.message : String(error), true);
       } finally {
         setBusy(false);
       }
+      if (!preparedData) await prepare(null, 'container');
     });
 
     function safeName() {
       const value = playerName.value.replace(/[^A-Za-z0-9 _-]/g, '').trim().slice(0, 32) || 'Ranger';
       playerName.value = value;
-      try {
-        localStorage.setItem('wasm-player-name', value);
-        localStorage.setItem('quake2.playerName', value);
-      } catch (_) {}
+      shell.preferences?.save();
       return value;
     }
 
@@ -310,34 +327,23 @@
     }
 
     function startDynamicQuality(module, ceilingName, targetFps) {
-      const names = ['medium', 'high', 'ultra'];
-      const ceiling = Math.max(0, names.indexOf(ceilingName));
-      let level = ceiling;
-      let started = 0;
-      let frames = 0;
-      let low = 0;
-      let high = 0;
-      function apply(next, measured) {
-        level = Math.max(0, Math.min(ceiling, next));
-        module._Q2Web_ApplyQuality(level);
-        globalThis.__quake2Quality = { level, name: names[level], fps: Math.round(measured * 10) / 10, targetFps };
-      }
-      function sample(now) {
-        requestAnimationFrame(sample);
-        if (document.hidden) { started = frames = low = high = 0; return; }
-        if (!started) { started = now; return; }
-        frames += 1;
-        const elapsed = now - started;
-        if (elapsed < 3000) return;
-        const measured = frames * 1000 / elapsed;
-        started = now;
-        frames = 0;
-        low = measured < targetFps * .92 ? low + 1 : 0;
-        high = measured >= targetFps * .985 ? high + 1 : 0;
-        if (low >= 2 && level > 0) { apply(level - 1, measured); low = high = 0; }
-        else if (high >= 5 && level < ceiling) { apply(level + 1, measured); low = high = 0; }
-      }
-      requestAnimationFrame(sample);
+      const levels = { medium: 0, high: 1, ultra: 2 };
+      const profiles = ceilingName === 'ultra' ? ['ultra', 'high', 'medium'] :
+        ceilingName === 'high' ? ['high', 'medium'] : ['medium'];
+      qualityController?.stop();
+      qualityController = WolfWasmShell.createQualityController({
+        profiles,
+        targetFps,
+        enabled: true,
+        apply(name, detail) {
+          module._Q2Web_ApplyQuality(levels[name]);
+          globalThis.__quake2Quality = { level: levels[name], name, targetFps, reason: detail.reason };
+        },
+        onSample(detail) {
+          document.documentElement.dataset.quake2MeasuredFps = detail.fps.toFixed(1);
+        }
+      });
+      qualityController.start();
     }
 
     async function loadEngineScript() {
@@ -359,7 +365,6 @@
       const fps = fpsSelect.value;
       const dynamic = dynamicToggle.checked;
       const viewport = browserViewport();
-      try { localStorage.setItem('quake2.graphics', JSON.stringify({ profile, fps, dynamic })); } catch (_) {}
       consoleView.textContent = '';
       loadingOverlay.hidden = false;
       shell.showRuntime();
@@ -377,6 +382,8 @@
         });
         loadingOverlay.hidden = true;
         shell.resize();
+        reportedState = nativeRuntimeState();
+        shell.setEngineState(reportedState);
         if (dynamic) startDynamicQuality(engineModule, profile, Number(fps));
         window.setInterval(() => {
           if (typeof engineModule._Q2Web_AudioCallbacks !== 'function') return;
@@ -412,6 +419,12 @@
               engineModule._Q2Web_FovY100() / 100
             ].join(',');
           }
+          const nextState = nativeRuntimeState();
+          if (nextState !== reportedState) {
+            reportedState = nextState;
+            shell.setEngineState(nextState);
+            engineModule._Q2Web_SetInputCaptured(shell.inputCaptured() ? 1 : 0);
+          }
         }, 250);
       } catch (error) {
         engineModule = null;
@@ -427,33 +440,24 @@
       if (!engineModule) return;
       canvas.focus();
       await shell.resumeAudio();
-      if (!document.pointerLockElement) {
-        try { await canvas.requestPointerLock(); }
-        catch (error) { console.warn('[Quake II WASM] pointer lock was not granted', error); }
-      }
     });
     document.addEventListener('pointerlockchange', () => {
       const captured = document.pointerLockElement === canvas;
       document.documentElement.dataset.inputCaptured = String(captured);
       if (!engineModule) return;
       engineModule._Q2Web_SetInputCaptured(captured ? 1 : 0);
-      if (!captured) engineModule._Q2Web_EnsureMenu();
-    });
-    window.addEventListener('wolfwasm-shell-resize', event => {
-      if (!engineModule || typeof engineModule._Q2Web_ResizeViewport !== 'function') return;
-      window.clearTimeout(resizeTimer);
-      const detail = event.detail || browserViewport();
-      resizeTimer = window.setTimeout(() => {
-        engineModule._Q2Web_ResizeViewport(Math.round(detail.cssWidth), Math.round(detail.cssHeight));
-      }, 350);
     });
 
     (async () => {
       setBusy(false);
-      message('Checking this browser for registered Quake II data…');
-      const parameters = new URLSearchParams(location.search);
-      const source = parameters.get('localdata') === '1' ? loopbackSource : missingSource;
-      await prepare(source, parameters.get('localdata') === '1' ? 'server-once' : 'selection');
+      message('Checking this container and browser for Quake II data…');
+      try {
+        const state = await containerData.applyGate();
+        if (state.ready) await prepare(null, 'container');
+        else message('Install the required Quake II PAKs in this container once.');
+      } catch (error) {
+        message(error instanceof Error ? error.message : String(error), true);
+      }
     })();
   })();
   </script>

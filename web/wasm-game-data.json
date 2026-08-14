@@ -1,0 +1,30 @@
+{
+  "namespace": "quake2-registered",
+  "version": "retail-paks-v1",
+  "files": [
+    {
+      "key": "pak0.pak",
+      "name": "pak0.pak",
+      "path": "pak0.pak",
+      "size": 183997730,
+      "magic": "PACK",
+      "sha256": "1ce99eb11e7e251ccdf690858effba79836dbe5e32a4083ad00a13ecda491679"
+    },
+    {
+      "key": "pak1.pak",
+      "name": "pak1.pak",
+      "path": "pak1.pak",
+      "size": 12992754,
+      "magic": "PACK",
+      "sha256": "678210ecd1b27dde1c645660333a1a7b139d849425793859657f804d379b62ad"
+    },
+    {
+      "key": "pak2.pak",
+      "name": "pak2.pak",
+      "path": "pak2.pak",
+      "size": 45055,
+      "magic": "PACK",
+      "sha256": "cb88d584ef939d08e24433a6cf86274737303fac2bbd94415927a75e6b269dd8"
+    }
+  ]
+}

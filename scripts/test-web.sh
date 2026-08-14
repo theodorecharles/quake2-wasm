@@ -7,7 +7,7 @@ framework_dir="${WASM_FRAMEWORK_DIR:-$repo_dir/../wasm-game-framework}"
 
 "$repo_dir/build-web.sh"
 
-for required in index.html quake2.js quake2.wasm \
+for required in index.html quake2.js quake2.wasm wasm-game-data.json \
   shared-shell/wolfwasm-shell.js shared-shell/wolfwasm-shell.css \
   shared-shell/wasm-game-framework.json; do
   [[ -f "$release_dir/$required" ]] || { echo "Missing Quake II web artifact: $required" >&2; exit 1; }
@@ -23,6 +23,9 @@ for marker in \
   'WolfWasmShell.configure' \
   'WolfWasmShell.createDataCache' \
   'WolfWasmShell.createOwnerDataSet' \
+  'WolfWasmShell.createContainerDataClient' \
+  "displayMode: 'dynamic'" \
+  'shell.setEngineState' \
   'quake2OwnerData: preparedData' \
   'quake2ControlsValid' \
   'Q2Web_SetInputCaptured' \
@@ -39,6 +42,7 @@ done
 
 grep -Fq 'grab = grab && q2web_input_captured' "$repo_dir/src/client/vid/glimp_sdl2.c"
 grep -Fq 'Q2Web_ConfigureControls' "$repo_dir/src/backends/web/main.c"
+grep -Fq 'Q2Web_RuntimeState' "$repo_dir/src/backends/web/main.c"
 grep -Fq 'Q2Web_AudioNonzeroCallbacks' "$repo_dir/src/client/sound/sdl.c"
 
 if grep -R -E 'caches\.open|CacheStorage|__quake2_owner_data__' "$repo_dir/web" >/dev/null; then
@@ -47,6 +51,10 @@ if grep -R -E 'caches\.open|CacheStorage|__quake2_owner_data__' "$repo_dir/web" 
 fi
 if find "$release_dir" -type f \( -iname '*.pak' -o -iname '*.pk3' -o -iname '*.data' \) -print -quit | grep -q .; then
   echo 'Retail-like data was found in the Quake II web release.' >&2
+  exit 1
+fi
+if grep -R -F '/local-data/' "$release_dir/index.html" >/dev/null; then
+  echo 'Legacy direct owner-data serving is still present.' >&2
   exit 1
 fi
 if grep -R -F '/home/ted/' "$release_dir" "$repo_dir/web" "$repo_dir/build-web.sh" >/dev/null; then

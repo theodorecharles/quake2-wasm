@@ -69,6 +69,20 @@ Q2Web_EnsureMenu(void)
 }
 
 EMSCRIPTEN_KEEPALIVE int
+Q2Web_RuntimeState(void)
+{
+	if (!q2web_started || cls.key_dest == key_menu || cls.key_dest == key_console || cls.key_dest == key_message)
+	{
+		return 0; /* menu / text input: host pointer must remain released */
+	}
+	if (Cvar_VariableValue("paused") != 0.0f)
+	{
+		return 2;
+	}
+	return cls.key_dest == key_game && cls.state == ca_active ? 1 : 0;
+}
+
+EMSCRIPTEN_KEEPALIVE int
 Q2Web_ControlsMask(void)
 {
 	int mask = 0;

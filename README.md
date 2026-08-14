@@ -5,10 +5,11 @@ compiled to WebAssembly with Emscripten. The project supplies a responsive web
 launcher, browser-private game-data caching, WebGL 2 rendering, SDL audio,
 modern controls, graphics profiles, and the original in-game UI.
 
-The retail game files are not included. On first launch, select the `baseq2`
-folder from a legally owned Quake II installation. The launcher verifies the
-three supported PAKs locally and caches them in this browser; it does not upload
-them. Hard refreshes and later sessions reuse that private cache.
+The retail game files are not included. A deployment stores the three supported
+PAKs in its persistent `/data` volume. If they are absent, the first-run screen
+lets the administrator install a legally owned `baseq2` folder into that
+container. Server validation happens before the files persist; each browser
+then downloads and privately caches them once for fast later loads.
 
 ## Controls
 
@@ -36,12 +37,17 @@ This builds and validates `build-web/release`. It never packages retail data.
 ## Run locally
 
 ```bash
-python3 -m http.server 8082 --directory build-web/release
+WASM_GAME_SITE_ROOT="$PWD/build-web/release" \
+WASM_GAME_SHELL_ROOT="$PWD/../wasm-game-framework/dist" \
+WASM_GAME_DATA_ROOT="$PWD/runtime" \
+WASM_GAME_HTTP_PORT=8082 \
+node ../wasm-game-framework/server/static-server.js
 ```
 
-Open `http://127.0.0.1:8082/`, choose the owner `baseq2` folder, and click
-**Play Quake II**. The Steam installation normally stores it under
-`steamapps/common/Quake 2/baseq2`.
+Open `http://127.0.0.1:8082/`. With an empty `runtime`, install the owner
+`baseq2` folder once, then click **Play Quake II**. The Steam installation
+normally stores it under `steamapps/common/Quake 2/baseq2`. Later visitors do
+not see setup controls.
 
 The current WebAssembly build supports the original single-player game through
 an in-process server and loopback transport. Remote multiplayer still requires
@@ -50,10 +56,11 @@ a browser WebSocket transport and compatible dedicated-server proxy.
 ## Data and privacy
 
 Only exact known `pak0.pak`, `pak1.pak`, and `pak2.pak` files are accepted. The
-launcher checks filename, size, `PACK` header, and SHA-256 before Play is
-enabled. Validated files live in browser-private IndexedDB and are mounted
-read-only for the engine. No anonymous upload route or public retail-data route
-exists.
+framework server and launcher check filename, size, `PACK` header, and SHA-256
+before Play is enabled. Validated files live in the persistent container volume
+and browser-private IndexedDB, then mount read-only inside the engine. Raw
+`/data` is never served; only exact allowlisted keys are downloadable. Set
+`WASM_SETUP_TOKEN` to protect first-run provisioning on a public deployment.
 
 ## Project layout
 

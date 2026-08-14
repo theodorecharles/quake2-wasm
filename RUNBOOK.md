@@ -25,11 +25,12 @@ bundle. The generated artifacts are:
 - `build-web/release/quake2.js`
 - `build-web/release/quake2.wasm`
 
-The static launcher, private owner-data path, HTTP code delivery, JavaScript,
-and WebAssembly structure have been verified. A loopback-only Docker-lab path
-at `?localdata=1` imports the three read-only owner PAKs through `/local-data/`,
-runs the exact same validation, and stores them in browser-private IndexedDB. Chrome
-confirmed this path reaches the enabled Play state without a picker.
+The shared framework's Docker server validates the persistent `/data` volume
+against `wasm-game-data.json`. If data is missing, only the one-time setup UI
+is shown; after successful provisioning it is hidden. Each browser downloads
+those exact server-held PAKs once and restores them from private IndexedDB on
+later visits. Raw `/data`, `/local-data`, arbitrary names, and uploads after a
+complete setup are unavailable.
 Chrome then started the native engine, loaded `base2` through the in-process
 server, and rendered live single-player combat with the authentic HUD. Native
 telemetry reported the complete WASD/aspect contract (`255/255`) after startup config,
@@ -44,7 +45,7 @@ saves, and remote multiplayer still need their dedicated checks.
 | --- | --- | --- |
 | Substantial native source compiles | Passed | 137 C compilation/link steps complete under Emscripten |
 | `.wasm` and launcher produced | Passed | `quake2.js` and validated `quake2.wasm` in `build-web/release` |
-| Launcher initializes in Chrome | Passed | real Chrome auto-imported all three PAKs and enabled Play |
+| Launcher initializes in Chrome | Passed | real Chrome saw ready container data, restored all three PAKs from IndexedDB, hid setup, and enabled Play |
 | Engine initializes in Chrome | Passed | browser log reached `==== Yamagi Quake II Initialized ====` |
 | Retail resources load in engine | Passed | runtime loaded `base2` models, images, clients, and sky from owner PAKs |
 | Authentic title/menu appears | Partial | attract sequence advances correctly; menu navigation not checked in this basic pass |
@@ -56,8 +57,9 @@ saves, and remote multiplayer still need their dedicated checks.
 ## Architecture
 
 ```text
-launcher: name + graphics choices
+framework launcher: name + graphics choices + one-time container setup
         |
+        | server /data -> exact allowlist -> browser IndexedDB (once)
         | Play (engine JS is deliberately loaded only here)
         v
 Emscripten preRun
@@ -98,17 +100,18 @@ The owner data found on this workstation is:
 /home/ted/.steam/debian-installation/steamapps/common/Quake 2/baseq2
 ```
 
-The launcher asks the owner to select this folder on first use. It requires the
-registered retail `pak0.pak` and
-the supported 3.20 patch `pak1.pak`/`pak2.pak`. It validates their exact names,
-sizes, `PACK` headers, and pinned SHA-256 values, then stores the validated
-`File` bodies in browser-private IndexedDB. The files are never uploaded,
-placed under the HTTP document root, copied into the build, or tracked by Git.
+The container requires registered retail `pak0.pak` and the supported 3.20
+patch `pak1.pak`/`pak2.pak`. It validates exact names, sizes, `PACK` headers,
+and SHA-256 values. An administrator may place them in the persistent `/data`
+volume or use the launcher's first-run upload. That upload is same-origin to
+the administrator's own container and is atomically accepted only after
+server-side validation. It is not a central upload or redistribution service.
 
-The portfolio Docker lab may instead mount an owner-controlled directory
-read-only and open `/?localdata=1`. This route is valid only while the container
-is bound to `127.0.0.1`; it performs the same exact size, PACK-header, and
-SHA-256 validation before caching or enabling Play.
+Once the volume is ready, the setup controls disappear. The framework then
+checks browser-private IndexedDB first and requests `/game-data/files/<key>`
+only for a true cache miss. Hard refreshes therefore do not transfer the PAKs
+again. PAKs are never placed under the HTTP document root, copied into the
+image/build, or tracked by Git.
 
 The engine bootstrap accepts exactly those three cache keys and pinned
 size/SHA metadata. It checks cached length and the `PACK` header before making
@@ -181,11 +184,13 @@ IndexedDB, the WASM MIME type, and WebGL require an HTTP origin.
 Only one portfolio game should own Chrome at a time.
 
 1. Start the server and open `http://127.0.0.1:8082/` in a fresh tab.
-2. On first use, select the owner-installed `baseq2` directory. Confirm the
-   launcher validates all three PAKs and says they are ready in private browser
-   storage. On later hard refreshes, confirm the ready state is restored without
-   selecting the folder again.
-3. Confirm no PAK appears in the Network panel, then enter a player name,
+2. With an empty `/data` volume, select the owner-installed `baseq2` directory
+   once. Confirm the container validates all three PAKs and the setup controls
+   disappear. If `/data` is already provisioned, confirm no setup controls are
+   rendered.
+3. On the first visit confirm only the three exact `/game-data/files/*`
+   requests appear. Hard refresh, confirm no PAK request appears because the
+   browser cache is used, then enter a player name,
    choose Medium/High/Ultra, choose 30/60/120 FPS, and
    decide whether Dynamic quality is enabled.
 4. Click **Play**. Expect private-cache-to-MEMFS progress for three owner PAKs
@@ -245,8 +250,14 @@ validator rejects an empty owner-data directory.
 - SDL owns keyboard/mouse events once the canvas is active. Pointer lock is
   requested by the native SDL backend, and Escape releases it through normal
   browser/engine behavior.
-- PAKs are selected locally and remain in private browser storage. There is no
-  PAK HTTP route, anonymous upload/PUT endpoint, or public retail-data service.
+- PAKs persist in the container volume and browser-private cache. Only exact
+  allowlisted keys are downloadable; first-run uploads close after setup, and
+  a deployment may require `WASM_SETUP_TOKEN`.
+- `dynamic` display mode synchronizes CSS canvas, native render buffer, view
+  rectangle, and Hor+ FOV. While native `vid_restart` catches up, the framework
+  temporarily contains the last valid aspect rather than stretching it.
+- Native state polling reports menu/gameplay/paused to the framework. Capture
+  is allowed only in gameplay and leaving capture opens the native menu.
 
 ## Residual blockers and next work
 
