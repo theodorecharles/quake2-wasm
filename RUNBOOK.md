@@ -26,10 +26,10 @@ bundle. The generated artifacts are:
 - `build-web/release/quake2.wasm`
 
 The static launcher, private owner-data path, HTTP code delivery, JavaScript,
-and WebAssembly structure have been verified. Chrome loaded the rebuilt
-launcher and showed the expected local-folder gate without a browser error.
-The automation extension was not permitted to attach local files, so the
-owner-data launch remains a short manual smoke rather than a playability claim.
+and WebAssembly structure have been verified. A loopback-only Docker-lab path
+at `?localdata=1` imports the three read-only owner PAKs through `/local-data/`,
+runs the exact same validation, and stores them in private CacheStorage. Chrome
+confirmed this path reaches the enabled Play state without a picker.
 Engine initialization, the title/menu, an actual level, input, and audio are
 **built but not yet browser-verified**.
 
@@ -39,7 +39,7 @@ Engine initialization, the title/menu, an actual level, input, and audio are
 | --- | --- | --- |
 | Substantial native source compiles | Passed | 137 C compilation/link steps complete under Emscripten |
 | `.wasm` and launcher produced | Passed | `quake2.js` and validated `quake2.wasm` in `build-web/release` |
-| Launcher initializes in Chrome | Passed | real Chrome showed the folder-selection gate and disabled Play state |
+| Launcher initializes in Chrome | Passed | real Chrome auto-imported all three PAKs and enabled Play |
 | Engine initializes in Chrome | Pending | automated local-file selection was denied; manual owner-data smoke required |
 | Retail resources load in engine | Pending | local header/size/hash validation passed; runtime load not observed |
 | Authentic title/menu appears | Pending | renderer and data are linked/prepared but not visually observed |
@@ -99,6 +99,11 @@ the supported 3.20 patch `pak1.pak`/`pak2.pak`. It validates their exact names,
 sizes, `PACK` headers, and pinned SHA-256 values, then stores the validated
 `File` bodies in browser-private CacheStorage. The files are never uploaded,
 placed under the HTTP document root, copied into the build, or tracked by Git.
+
+The portfolio Docker lab may instead mount an owner-controlled directory
+read-only and open `/?localdata=1`. This route is valid only while the container
+is bound to `127.0.0.1`; it performs the same exact size, PACK-header, and
+SHA-256 validation before caching or enabling Play.
 
 The engine bootstrap accepts exactly those three cache keys and pinned
 size/SHA metadata. It checks cached length and the `PACK` header before making
