@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import base64
 import hashlib
+import json
 import logging
 import selectors
 import socket
@@ -76,8 +77,27 @@ class BridgeHandler(SimpleHTTPRequestHandler):
     extensions_map = {**SimpleHTTPRequestHandler.extensions_map,
                       ".wasm": "application/wasm", ".data": "application/octet-stream"}
 
+    def send_health(self) -> None:
+        data_root = Path("/data")
+        body = json.dumps({
+            "ok": True,
+            "game": "quake2-wasm",
+            "dataMounted": (data_root / "baseq2" / "pak0.pak").is_file(),
+        }).encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        if self.command != "HEAD":
+            self.wfile.write(body)
+
     def do_GET(self):
-        if urlsplit(self.path).path == "/ws":
+        path = urlsplit(self.path).path
+        if path == "/health":
+            self.send_health()
+            return
+        if path == "/ws":
             self.handle_websocket()
             return
         if self.path == "/":
@@ -86,6 +106,12 @@ class BridgeHandler(SimpleHTTPRequestHandler):
             self.end_headers()
             return
         super().do_GET()
+
+    def do_HEAD(self):
+        if urlsplit(self.path).path == "/health":
+            self.send_health()
+            return
+        super().do_HEAD()
 
     def origin_allowed(self, origin: str | None) -> bool:
         if not origin:

@@ -17,6 +17,11 @@ Ship the real Quake II single-player campaign and native Quake II multiplayer in
 - Steam app 2320 was re-checked on 2026-08-13 and is fully installed. The local owner-provided `baseq2/pak0.pak`, `pak1.pak`, and `pak2.pak` paths are present; they remain ignored and outside public bundles. Browser asset mounting and playability still require runtime evidence before those milestones can be claimed.
 - Original id source belongs in ignored `references/quake2-source/` and is reference-only.
 
+### Docker checkpoint (2026-08-14)
+
+- `scripts/build-docker.sh` builds `theodorecharles/quake2-wasm:dev` for `linux/amd64` from the assetless WASM bundle, native `q2ded`, and `game.so`.
+- The image serves `/health` and the browser bundle on port 8088, mounts owner data at `/data`, and contains zero retail PAK files. The current bridge remains a bounded transport checkpoint rather than a full lifecycle implementation.
+
 ## Downstream-only rule
 
 Do not submit anything upstream. Do not open or comment on Qwasm2, Yamagi, or id Software pull requests, issues, discussions, or releases. Do not message maintainers. Never push to `upstream`. All generated work stays in `theodorecharles/quake2-wasm`.
