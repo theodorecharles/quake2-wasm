@@ -115,6 +115,9 @@ static void Qcommon_Frame(int usec);
 
 #ifdef __EMSCRIPTEN__
 static long long web_oldtime;
+static unsigned int web_control_guard_frames;
+
+extern void Q2Web_ConfigureControls(void);
 
 static void
 Qcommon_WebFrame(void)
@@ -134,6 +137,17 @@ Qcommon_WebFrame(void)
 
 	curtime = (int)(newtime / 1000ll);
 	Qcommon_Frame((int)delta);
+	/*
+	 * quake2.cfg and default.cfg are executed during the first browser
+	 * frames, after Qcommon_Init() returns.  Keep the browser defaults in
+	 * force through that short bootstrap window so the native defaults
+	 * cannot restore the legacy A/Z pitch bindings over WASD.
+	 */
+	if (web_control_guard_frames < 180)
+	{
+		Q2Web_ConfigureControls();
+		web_control_guard_frames++;
+	}
 	web_oldtime = newtime;
 }
 #endif

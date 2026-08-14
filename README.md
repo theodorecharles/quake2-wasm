@@ -1,86 +1,68 @@
-# Yamagi Quake II
+# quake2-wasm
 
-Yamagi Quake II is an enhanced client for id Software's Quake II with
-focus on offline and coop gameplay. Both the gameplay and the graphics
-are unchanged, but many bugs in the last official release were fixed and
-some nice to have features like widescreen support, reliable support for
-high framerates, a modern sound backend based upon OpenAL, support for
-modern game controllers and a modern OpenGL 3.2 renderer were added.
-Unlike most other Quake II source ports Yamagi Quake II is fully 64-bit
-clean. It works perfectly on modern processors and operating systems.
+Quake II running locally in a browser from the native Yamagi Quake II source,
+compiled to WebAssembly with Emscripten. The project supplies a responsive web
+launcher, browser-private game-data caching, WebGL 2 rendering, SDL audio,
+modern controls, graphics profiles, and the original in-game UI.
 
-This code is built upon Icculus Quake II, which itself is based on Quake
-II 3.21. Yamagi Quake II is released under the terms of the GPL version
-2. See LICENSE for further information:
+The retail game files are not included. On first launch, select the `baseq2`
+folder from a legally owned Quake II installation. The launcher verifies the
+three supported PAKs locally and caches them in this browser; it does not upload
+them. Hard refreshes and later sessions reuse that private cache.
 
-* [LICENSE](https://github.com/yquake2/yquake2/blob/master/LICENSE)
+## Controls
 
-Officially supported operating systems are:
+- W/A/S/D: move
+- Mouse: look
+- Left mouse: fire
+- Right mouse or Space: jump
+- E: use
+- Shift: run
+- Escape: menu / release input
 
-* FreeBSD
-* Linux
-* Windows
+Click the game once to enable browser audio and capture the pointer. Quake II's
+legacy A/Z pitch bindings are deliberately cleared.
 
-Beside theses Yamagi Quake II has community support for MacOS and most
-other unixoid operating systems, including NetBSD, OpenBSD and Solaris.
+## Build
 
+Install CMake, Ninja, Node.js, and the Emscripten SDK, then run:
 
-## Addons and partner projects
+```bash
+EMSDK_DIR=/path/to/emsdk ./scripts/test-web.sh
+```
 
-This repository contains Yamagi Quake II itself. The official addons
-have their own repositories:
+This builds and validates `build-web/release`. It never packages retail data.
 
-* [The Reckoning](https://github.com/yquake2/xatrix)
-* [Ground Zero](https://github.com/yquake2/rogue)
-* [Three Waves Capture The Flag](https://github.com/yquake2/ctf)
+## Run locally
 
-Yamagi Quake II Remaster is a project providing optional support for the
-assets of Quake II Remaster by Nightdive Studios and has a less
-conservative approach in regards to new features. It also lives in it's
-own repository:
+```bash
+python3 -m http.server 8082 --directory build-web/release
+```
 
-* [Yamagi Quake II Remaster](https://github.com/yquake2/yquake2remaster)
+Open `http://127.0.0.1:8082/`, choose the owner `baseq2` folder, and click
+**Play Quake II**. The Steam installation normally stores it under
+`steamapps/common/Quake 2/baseq2`.
 
+The current WebAssembly build supports the original single-player game through
+an in-process server and loopback transport. Remote multiplayer still requires
+a browser WebSocket transport and compatible dedicated-server proxy.
 
-## Development
+## Data and privacy
 
-Yamagi Quake II is a community driven project and lives from community
-involvement. Please report bugs in our issue tracker:
+Only exact known `pak0.pak`, `pak1.pak`, and `pak2.pak` files are accepted. The
+launcher checks filename, size, `PACK` header, and SHA-256 before Play is
+enabled. Validated files live in browser-private IndexedDB and are mounted
+read-only for the engine. No anonymous upload route or public retail-data route
+exists.
 
-* [Issue Tracker](https://github.com/yquake2/yquake2/issues)
+## Project layout
 
-We are always open to code contributions, no matter if they are small
-bugfixes or bigger features. However, Yamagi Quake II is a conservative
-project with big focus on stability and backward compatibility. We don't
-accept breaking changes. When in doubt please open an issue and ask if a
-contribution is welcome before putting too much work into it. Open a
-pull request to submit code:
+- `web/`: launcher and owner-data bootstrap
+- `src/backends/web/`: browser platform boundary
+- `scripts/test-web.sh`: reproducible build and static checks
+- `RUNBOOK.md`: architecture, exact test evidence, and remaining work
+- `build-web/release/`: generated browser bundle (ignored)
 
-* [Pull Requests](https://github.com/yquake2/yquake2/pulls)
-
-Also have a look at our contributors guide:
-
-* [Contributors Guide](https://github.com/yquake2/yquake2/blob/master/doc/080_contributing.md)
-
-
-## Documentation
-
-Yamagi Quake II has rather extensive documentation covering all relevant
-areas from installation and configuration to package building. Have a
-look at the documentation index:
-
-* [Documentation Index](https://github.com/yquake2/yquake2/blob/master/doc/010_index.md)
-
-
-## Releases
-
-Yamagi Quake II releases at an irregular schedule. The official releases
-with source code tarballs and prebuild Windows binaries can be found at
-the homepage:
-
-* [Homepage](https://www.yamagi.org/quake2/)
-
-Our CI builds **unsupported** Linux, MacOS and Windows binaries at every
-commit. The artifacts can be found here:
-
-* [Github Actions](https://github.com/yquake2/yquake2/actions)
+This downstream browser work is based on Yamagi Quake II and id Software's GPL
+Quake II source. See `LICENSE` and the existing source headers for licensing and
+attribution. Do not submit the browser-port patches upstream.

@@ -41,6 +41,9 @@
 #endif
 
 #include <errno.h>
+#ifdef YQ2_WEB
+#include <emscripten/emscripten.h>
+#endif
 
 /* Local includes */
 #include "../../client/header/client.h"
@@ -62,6 +65,23 @@ static int snd_inited = 0;
 static int snd_scaletable[32][256];
 static int snd_vol;
 static int soundtime;
+
+#ifdef YQ2_WEB
+static volatile unsigned int q2web_audio_callbacks;
+static volatile unsigned int q2web_audio_nonzero_callbacks;
+
+EMSCRIPTEN_KEEPALIVE unsigned int
+Q2Web_AudioCallbacks(void)
+{
+	return q2web_audio_callbacks;
+}
+
+EMSCRIPTEN_KEEPALIVE unsigned int
+Q2Web_AudioNonzeroCallbacks(void)
+{
+	return q2web_audio_nonzero_callbacks;
+}
+#endif
 
 /* ------------------------------------------------------------------ */
 
@@ -1278,6 +1298,12 @@ SDL_Callback(void *data, Uint8 *stream, int length)
 	int length1;
 	int length2;
 	int pos = (playpos * (backend->samplebits / 8));
+	Uint8 *stream_start = stream;
+	int stream_length = length;
+
+#ifdef YQ2_WEB
+	q2web_audio_callbacks++;
+#endif
 
 	if (pos >= samplesize)
 	{
@@ -1321,6 +1347,17 @@ SDL_Callback(void *data, Uint8 *stream, int length)
 	{
 		playpos = 0;
 	}
+
+#ifdef YQ2_WEB
+	for (int i = 0; i < stream_length; ++i)
+	{
+		if (stream_start[i] != 0)
+		{
+			q2web_audio_nonzero_callbacks++;
+			break;
+		}
+	}
+#endif
 }
 
 #ifdef USE_SDL3
@@ -1361,6 +1398,11 @@ SDL_BackendInit(void)
 	{
 		return true;
 	}
+
+#ifdef YQ2_WEB
+	q2web_audio_callbacks = 0;
+	q2web_audio_nonzero_callbacks = 0;
+#endif
 
 	int sndbits = (Cvar_Get("sndbits", "16", CVAR_ARCHIVE))->value;
 	int sndfreq = (Cvar_Get("s_khz", "44", CVAR_ARCHIVE))->value;
@@ -1529,6 +1571,11 @@ SDL_BackendInit(void)
 	{
 		return true;
 	}
+
+#ifdef YQ2_WEB
+	q2web_audio_callbacks = 0;
+	q2web_audio_nonzero_callbacks = 0;
+#endif
 
 	int sndbits = (Cvar_Get("sndbits", "16", CVAR_ARCHIVE))->value;
 	int sndfreq = (Cvar_Get("s_khz", "44", CVAR_ARCHIVE))->value;

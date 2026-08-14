@@ -25,4 +25,11 @@ emcmake cmake -S "$repo_dir" -B "$repo_dir/build-web" -G Ninja \
   -DCMAKE_BUILD_TYPE=Release
 cmake --build "$repo_dir/build-web" --target quake2
 
+framework_dir="${WASM_FRAMEWORK_DIR:-$repo_dir/../wasm-game-framework}"
+if [[ ! -x "$framework_dir/scripts/install-browser-package.sh" ]]; then
+  echo "WASM framework browser package not found at $framework_dir" >&2
+  exit 1
+fi
+"$framework_dir/scripts/install-browser-package.sh" "$repo_dir/build-web/release/shared-shell" copy
+
 echo "Web bundle: $repo_dir/build-web/release"

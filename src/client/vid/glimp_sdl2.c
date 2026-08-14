@@ -731,6 +731,10 @@ void
 GLimp_GrabInput(qboolean grab)
 {
 	static qboolean seen_error = false;
+#ifdef YQ2_WEB
+	extern qboolean q2web_input_captured;
+	grab = grab && q2web_input_captured;
+#endif
 	if(window != NULL)
 	{
 		SDL_SetWindowGrab(window, grab ? SDL_TRUE : SDL_FALSE);

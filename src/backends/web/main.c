@@ -15,7 +15,71 @@
 
 #include <emscripten.h>
 
+#include "../../client/header/client.h"
+#include "../../client/header/keyboard.h"
+#include "../../client/vid/header/vid.h"
 #include "../../common/header/common.h"
+
+qboolean q2web_input_captured = false;
+static qboolean q2web_started = false;
+static qboolean q2web_controls_announced = false;
+
+void
+Q2Web_ConfigureControls(void)
+{
+	Key_SetBinding('w', "+forward");
+	Key_SetBinding('s', "+back");
+	Key_SetBinding('a', "+moveleft");
+	Key_SetBinding('d', "+moveright");
+	Key_SetBinding(K_SPACE, "+moveup");
+	Key_SetBinding('e', "+use");
+	Key_SetBinding(K_MOUSE1, "+attack");
+	Key_SetBinding(K_MOUSE2, "+moveup");
+	Key_SetBinding(K_SHIFT, "+speed");
+	Key_SetBinding('z', "");
+	Cvar_Set("sensitivity", "4");
+	Cvar_Set("m_filter", "0");
+	if (!q2web_controls_announced)
+	{
+		Com_Printf("[quake2-wasm] browser controls: WASD, sensitivity 4, mouse look/fire, Space jump, E use\n");
+		q2web_controls_announced = true;
+	}
+}
+
+EMSCRIPTEN_KEEPALIVE void
+Q2Web_SetInputCaptured(int captured)
+{
+	q2web_input_captured = captured ? true : false;
+	if (!q2web_input_captured)
+	{
+		Key_MarkAllUp();
+	}
+}
+
+EMSCRIPTEN_KEEPALIVE void
+Q2Web_EnsureMenu(void)
+{
+	if (!q2web_started || cls.key_dest != key_game)
+	{
+		return;
+	}
+	Key_Event(K_ESCAPE, true, true);
+	Key_Event(K_ESCAPE, false, true);
+}
+
+EMSCRIPTEN_KEEPALIVE int
+Q2Web_ControlsMask(void)
+{
+	int mask = 0;
+	if (keybindings['w'] && strcmp(keybindings['w'], "+forward") == 0) mask |= 1;
+	if (keybindings['s'] && strcmp(keybindings['s'], "+back") == 0) mask |= 2;
+	if (keybindings['a'] && strcmp(keybindings['a'], "+moveleft") == 0) mask |= 4;
+	if (keybindings['d'] && strcmp(keybindings['d'], "+moveright") == 0) mask |= 8;
+	if (keybindings['z'] && keybindings['z'][0] == '\0') mask |= 16;
+	if (Cvar_VariableValue("sensitivity") == 4.0f) mask |= 32;
+	if (Cvar_VariableValue("m_filter") == 0.0f) mask |= 64;
+	return mask;
+}
 
 EMSCRIPTEN_KEEPALIVE void
 Q2Web_ApplyQuality(int level)
@@ -69,5 +133,6 @@ main(int argc, char **argv)
 
 	printf("[quake2-wasm] browser filesystem ready; starting Yamagi Quake II\n");
 	Qcommon_Init(argc, argv);
+	q2web_started = true;
 	return 0;
 }

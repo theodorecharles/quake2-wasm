@@ -28,14 +28,15 @@ bundle. The generated artifacts are:
 The static launcher, private owner-data path, HTTP code delivery, JavaScript,
 and WebAssembly structure have been verified. A loopback-only Docker-lab path
 at `?localdata=1` imports the three read-only owner PAKs through `/local-data/`,
-runs the exact same validation, and stores them in private CacheStorage. Chrome
+runs the exact same validation, and stores them in browser-private IndexedDB. Chrome
 confirmed this path reaches the enabled Play state without a picker.
 Chrome then started the native engine, loaded `base2` through the in-process
-server, and rendered live single-player combat with the authentic HUD. The
-first load spends several seconds on the attract/demo transition and map data;
-the temporary black canvas during that interval is expected. Sustained physical
-input, pointer lock, audio, saves, and remote multiplayer still need their
-dedicated checks.
+server, and rendered live single-player combat with the authentic HUD. Native
+telemetry reported the complete WASD contract (`127/127`) after startup config,
+and SDL audio produced nonzero samples after the browser gesture. The first load
+spends several seconds on the attract/demo transition and map data; the
+temporary black canvas during that interval is expected. Physical pointer lock,
+saves, and remote multiplayer still need their dedicated checks.
 
 ### Milestone ledger
 
@@ -48,8 +49,8 @@ dedicated checks.
 | Retail resources load in engine | Passed | runtime loaded `base2` models, images, clients, and sky from owner PAKs |
 | Authentic title/menu appears | Partial | attract sequence advances correctly; menu navigation not checked in this basic pass |
 | Single-player level renders | Passed | Chromium captured live `base2` combat with HUD and enemies |
-| Keyboard/mouse work | Partial | launcher/menu input works; sustained movement/pointer-lock pass remains |
-| Sound works | Pending | SDL2 audio is linked but browser audio unlock is not manually exercised |
+| Keyboard/mouse work | Passed with gesture caveat | telemetry is `127/127`: WASD, Space, E, mouse fire/look, sensitivity 4, A/Z legacy pitch removed; physical pointer lock still needs a user click |
+| Sound works | Passed | SDL callback telemetry produced nonzero samples after canvas interaction |
 | Remote multiplayer works | Not implemented | needs a WebSocket-to-UDP transport/proxy |
 
 ## Architecture
@@ -60,7 +61,7 @@ launcher: name + graphics choices
         | Play (engine JS is deliberately loaded only here)
         v
 Emscripten preRun
-  |- restore exactly allowlisted pak0/pak1/pak2 from private CacheStorage
+  |- restore exactly allowlisted pak0/pak1/pak2 from private IndexedDB
   |- stream them into read-only /data/baseq2 without an HTTP request
   `- mount /persist as browser-local IDBFS
         |
@@ -101,7 +102,7 @@ The launcher asks the owner to select this folder on first use. It requires the
 registered retail `pak0.pak` and
 the supported 3.20 patch `pak1.pak`/`pak2.pak`. It validates their exact names,
 sizes, `PACK` headers, and pinned SHA-256 values, then stores the validated
-`File` bodies in browser-private CacheStorage. The files are never uploaded,
+`File` bodies in browser-private IndexedDB. The files are never uploaded,
 placed under the HTTP document root, copied into the build, or tracked by Git.
 
 The portfolio Docker lab may instead mount an owner-controlled directory
@@ -111,7 +112,7 @@ SHA-256 validation before caching or enabling Play.
 
 The engine bootstrap accepts exactly those three cache keys and pinned
 size/SHA metadata. It checks cached length and the `PACK` header before making
-the files read-only in `/data`. CacheStorage avoids another folder selection
+the files read-only in `/data`. The shared framework cache avoids another folder selection
 after a hard refresh. It does not eliminate the current first-milestone
 MEMFS copy: roughly 197 MiB of PAK data is materialized again in WASM memory on
 each engine launch.
@@ -172,7 +173,7 @@ Open this exact local URL in Chrome:
 http://127.0.0.1:8082/
 ```
 
-Do not open `index.html` directly with a `file:` URL. Fetch, CacheStorage,
+Do not open `index.html` directly with a `file:` URL. Fetch, IndexedDB,
 IndexedDB, the WASM MIME type, and WebGL require an HTTP origin.
 
 ## Serialized Chrome smoke procedure
@@ -203,8 +204,10 @@ Only one portfolio game should own Chrome at a time.
    an attract demo starts, then choose **Game -> New Game -> Easy** and verify a
    level renders.
 7. Click the canvas, verify pointer lock and mouse look, then test WASD, mouse
-   buttons, Escape, and the console. A click may also be required to resume the
-   browser audio context after the long first asset load.
+   buttons, Escape, and the console. The defaults are W/A/S/D movement, Space
+   jump, E use, mouse fire/look, sensitivity 4, and no A/Z pitch bindings. A
+   click may also be required to resume the browser audio context after the
+   long first asset load.
 8. Change one setting or create a save, reload, click Play again, and verify the
    setting/save persists from IDBFS.
 9. With Dynamic quality enabled, inspect `window.__quake2Quality` after at least
@@ -219,7 +222,7 @@ Only one portfolio game should own Chrome at a time.
 The following passed on 2026-08-14:
 
 ```bash
-./build-web.sh
+./scripts/test-web.sh
 ./scripts/prepare-web-assets.sh "/home/ted/.steam/debian-installation/steamapps/common/Quake 2/baseq2"
 bash -n build-web.sh scripts/prepare-web-assets.sh
 node --check web/pre.js
@@ -247,14 +250,14 @@ validator rejects an empty owner-data directory.
 
 ## Residual blockers and next work
 
-1. Finish the physical input, pointer-lock, audio, and save-persistence portions
-   of the serialized Chrome smoke; do not start a renderer-polish loop yet.
+1. Finish the physical pointer-lock and save-persistence portions of the
+   serialized Chrome smoke; browser automation cannot grant pointer lock.
 2. Implement an explicit WebSocket client transport and server-side UDP proxy
    before claiming remote multiplayer. Server wake/keep-alive, human counts,
    an eight-player default, and bot-yield policy belong with that server work,
    not in the current single-player loopback shim.
-3. Confirm SDL pointer-lock transitions and audio resume after the first long
-   asset load.
+3. Confirm the physical SDL pointer-lock transition after the first long asset
+   load; automated Chrome already confirmed nonzero SDL audio output.
 4. Replace the full MEMFS PAK materialization with a seekable, range-backed or
    chunked read-only filesystem before production scale; preserve exact
    allowlisting and browser-local cache semantics.
