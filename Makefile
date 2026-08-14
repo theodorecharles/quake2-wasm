@@ -80,6 +80,26 @@ ifdef EMSCRIPTEN
 GL4ES_PATH ?= /home/user/gl4es_pic
 WITH_CURL := no
 WITH_OPENAL := no
+
+# GL1 requires a separately built, PIC-enabled GL4ES archive. Keep that
+# historical renderer available when requested, but make the WebGL 2/GLES3
+# and software pair the reproducible default.
+WITH_GL1 ?= no
+WASM_RENDERER_TARGETS := ref_soft ref_gles3
+WASM_RENDERER_MODULES := release/ref_soft.wasm release/ref_gles3.wasm
+
+ifeq ($(WITH_GL1),yes)
+WASM_RENDERER_TARGETS += ref_gl1
+WASM_RENDERER_MODULES += release/ref_gl1.wasm
+ifeq ($(wildcard $(GL4ES_PATH)/lib/libGL.a),)
+$(error WITH_GL1=yes requires GL4ES_PATH to contain lib/libGL.a)
+endif
+endif
+
+WASM_PRELOADS := --preload-file=wasm/baseq2@/baseq2
+ifneq ($(strip $(WASM_LOCAL_DATA_DIR)),)
+WASM_PRELOADS += --preload-file=$(WASM_LOCAL_DATA_DIR)@/baseq2
+endif
 endif
 
 # ----------
@@ -434,7 +454,7 @@ endif
 
 # Builds everything but the GLES1 renderer
 ifeq ($(YQ2_OSTYPE), Emscripten)
-all: config ref_soft ref_gl1 ref_gles3 game client
+all: config $(WASM_RENDERER_TARGETS) game client
 else
 all: config client server game ref_gl1 ref_gl3 ref_gles3 ref_soft
 endif
@@ -457,6 +477,10 @@ config:
 	@echo "WITH_SDL3 = $(WITH_SDL3)"
 	@echo "WITH_SYSTEMWIDE = $(WITH_SYSTEMWIDE)"
 	@echo "WITH_SYSTEMDIR = $(WITH_SYSTEMDIR)"
+ifeq ($(YQ2_OSTYPE), Emscripten)
+	@echo "WITH_GL1 = $(WITH_GL1)"
+	@echo "WASM_LOCAL_DATA_DIR = $(WASM_LOCAL_DATA_DIR)"
+endif
 	@echo "============================"
 	@echo ""
 
@@ -591,8 +615,8 @@ ifeq ($(YQ2_OSTYPE), Emscripten)
 release/index.html : CFLAGS += -fPIC
 release/index.html : LDFLAGS += -sFULL_ES2=1 -sFULL_ES3=1 -sMIN_WEBGL_VERSION=1 -sMAX_WEBGL_VERSION=2 -sMAIN_MODULE=2 \
                                  -sINITIAL_MEMORY=128MB -sTOTAL_STACK=4MB -sALLOW_MEMORY_GROWTH \
-                                 --shell-file wasm/shell.html --preload-file=wasm/baseq2@/baseq2 \
-                                 release/ref_soft.wasm release/ref_gl1.wasm release/ref_gles3.wasm \
+                                 --shell-file wasm/shell.html $(WASM_PRELOADS) \
+                                 $(WASM_RENDERER_MODULES) \
                                  release/game_baseq2.wasm $(WASM_EXTRA_GAMES) -lidbfs.js
 endif
 
@@ -1315,7 +1339,7 @@ release/quake2.exe : src/win-wrapper/wrapper.c icon
 	$(Q)$(CC) -Wall -mwindows build/icon/icon.res src/win-wrapper/wrapper.c -o $@
 	$(Q)strip $@
 else ifeq ($(YQ2_OSTYPE), Emscripten)
-release/index.html : $(CLIENT_OBJS)
+release/index.html : $(CLIENT_OBJS) $(WASM_RENDERER_MODULES) release/game_baseq2.wasm
 	@echo "===> LD $@"
 	${Q}$(CC) $(LDFLAGS) $(CLIENT_OBJS) $(LDLIBS) $(SDLLDFLAGS) -o $@
 else

@@ -86,8 +86,47 @@
       var outputElement = document.getElementById('output');
       var exportElement = document.getElementById('exportFile');
 
+      const bridgeURL = new URL('/ws', window.location.href);
+      bridgeURL.protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+
+      const reportMissingRetailData = () => {
+        const message = '[assets] Missing owner-provided Quake II retail data at /baseq2/pak0.pak. ' +
+          'Public bundles intentionally contain no PAK files. Run scripts/setup-data.sh and use ' +
+          'WITH_LOCAL_RETAIL_DATA=1 scripts/build-web.sh for an ignored local validation bundle.';
+        Module.print(message);
+        Module.setStatus('Missing retail Quake II data - see console.');
+        document.body.dataset.retailData = 'missing';
+      };
+
+      const configureBridgeDiagnostics = () => {
+        if (!Module.websocket || typeof Module.websocket.on !== 'function') return;
+        Module.websocket.on('open', (fd) => {
+          Module.print('[network] WebSocket bridge connected at ' + bridgeURL.href + ' (fd ' + fd + ').');
+        });
+        Module.websocket.on('error', (event) => {
+          const reason = Array.isArray(event) && event.length > 2 ? ': ' + event[2] : '';
+          Module.print('[network] WebSocket bridge error' + reason);
+        });
+        Module.websocket.on('close', (fd) => {
+          Module.print('[network] WebSocket bridge closed (fd ' + fd + ').');
+        });
+      };
+
       var Module = {
         _canLockPointer: true,
+        websocket: {
+          url: bridgeURL.href,
+          subprotocol: 'binary'
+        },
+        preRun: [() => {
+          try {
+            FS.stat('/baseq2/pak0.pak');
+            document.body.dataset.retailData = 'mounted';
+          } catch (error) {
+            reportMissingRetailData();
+          }
+          configureBridgeDiagnostics();
+        }],
         print: (function() {
           outputElement.value = ''; // clear browser cache
           return function(text) {

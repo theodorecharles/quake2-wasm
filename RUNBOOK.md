@@ -14,7 +14,7 @@ Ship the real Quake II single-player campaign and native Quake II multiplayer in
 - Qwasm2 already builds a main WASM engine plus side modules for the base game and GLES3/GL1/software renderers.
 - Existing output contract: `index.html`, `index.js`, `index.data`, `index.wasm`, `game_baseq2.wasm`, `ref_soft.wasm`, `ref_gl1.wasm`, and `ref_gles3.wasm`.
 - Existing browser persistence covers saves/configs; multiplayer WebSockets are explicitly not implemented yet.
-- Steam app 2320 is not currently downloaded: its manifest reports update/download required and no `baseq2/*.pak` data is present. Do not claim an asset or playability milestone until this changes.
+- Steam app 2320 was re-checked on 2026-08-13 and is fully installed. The local owner-provided `baseq2/pak0.pak`, `pak1.pak`, and `pak2.pak` paths are present; they remain ignored and outside public bundles. Browser asset mounting and playability still require runtime evidence before those milestones can be claimed.
 - Original id source belongs in ignored `references/quake2-source/` and is reference-only.
 
 ## Downstream-only rule
@@ -162,3 +162,12 @@ Use `/data/baseq2` plus writable `/data/custom_maps`. Wake only on Multiplayer i
 ## Status handoff
 
 Record current milestone, exact passing command, artifacts, Steam asset state, browser test request, networking blocker, and `Upstream contacted: no`.
+
+## Wave 1 implementation evidence
+
+- Native `q2ded` reproduced before scaffold changes with `make -j4 SOURCE_DATE_EPOCH=1726334889 server`.
+- Emscripten 6.0.6 reproduced `ref_soft.wasm`, `ref_gles3.wasm`, and `game_baseq2.wasm`; the historical main-module link then failed only because `ref_gl1.wasm` was hardcoded without a local PIC GL4ES archive.
+- `scripts/build-web.sh` now makes GLES3/software the deterministic default while preserving opt-in GL1, and emits a machine-readable bundle manifest.
+- `scripts/build-server.sh` builds native `q2ded` and `baseq2/game.so` separately and emits a server manifest.
+- `scripts/setup-data.sh` validates and links owner-provided local PAK paths into ignored storage, with a local checksum manifest and an actionable missing-data failure.
+- The first multiplayer boundary routes the existing Emscripten datagram emulation to same-origin `/ws`; `scripts/serve-local.py` supplies a bounded loopback WebSocket-to-fixed-UDP test bridge. Browser and real `q2ded` multiplayer acceptance remain pending Luna's serial runtime test.
