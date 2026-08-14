@@ -18,7 +18,6 @@
     #loading-overlay { z-index: 30; }
     #loading-overlay [data-shell-card] { width: min(48rem, 94vw) !important; }
     [data-shell-canvas] { cursor: default; }
-    :root[data-input-captured="true"] [data-shell-canvas] { cursor: none; }
     @media (max-width: 560px) {
       #launcher-actions { grid-template-columns: 1fr; }
       #launcher-actions #play { grid-column: auto; }
@@ -120,12 +119,13 @@
       runtime: '#runtime',
       canvas,
       aspect: 16 / 9,
-      fit: 'contain',
+      fit: 'fill',
       pixelated: false,
       graphics: true,
       identity: true,
       advanced: true,
-      maxDpr: 2
+      maxDpr: 2,
+      pointerLock: true
     });
     const cache = WolfWasmShell.createDataCache({
       namespace: 'quake2-registered',
@@ -147,6 +147,7 @@
     let preparedData = null;
     let busy = false;
     let engineModule = null;
+    let resizeTimer = 0;
 
     try {
       playerName.value = localStorage.getItem('wasm-player-name') || localStorage.getItem('quake2.playerName') || 'Ranger';
@@ -280,7 +281,15 @@
       return value;
     }
 
-    function graphicsArguments(profile, fps) {
+    function browserViewport() {
+      const viewport = window.visualViewport;
+      return {
+        width: Math.max(640, Math.min(8192, Math.round(viewport ? viewport.width : window.innerWidth))),
+        height: Math.max(360, Math.min(8192, Math.round(viewport ? viewport.height : window.innerHeight)))
+      };
+    }
+
+    function graphicsArguments(profile, fps, viewport) {
       const profiles = {
         medium: ['+set', 'r_msaa_samples', '0', '+set', 'r_anisotropic', '2', '+set', 'r_shadows', '0', '+set', 'cl_particles', '0', '+set', 'cl_lights', '0'],
         high: ['+set', 'r_msaa_samples', '2', '+set', 'r_anisotropic', '8', '+set', 'r_shadows', '0', '+set', 'cl_particles', '1', '+set', 'cl_lights', '1'],
@@ -290,8 +299,8 @@
         '+set', 'vid_renderer', 'gles3',
         '+set', 'vid_fullscreen', '0',
         '+set', 'r_mode', '-1',
-        '+set', 'r_customwidth', '1280',
-        '+set', 'r_customheight', '720',
+        '+set', 'r_customwidth', String(viewport.width),
+        '+set', 'r_customheight', String(viewport.height),
         '+set', 'vid_maxfps', String(fps),
         '+set', 'in_grab', '2',
         ...(profiles[profile] || profiles.high)
@@ -347,6 +356,7 @@
       const profile = qualitySelect.value;
       const fps = fpsSelect.value;
       const dynamic = dynamicToggle.checked;
+      const viewport = browserViewport();
       try { localStorage.setItem('quake2.graphics', JSON.stringify({ profile, fps, dynamic })); } catch (_) {}
       consoleView.textContent = '';
       loadingOverlay.hidden = false;
@@ -357,7 +367,7 @@
         engineModule = await createQuake2Module({
           canvas,
           quake2OwnerData: preparedData,
-          arguments: ['-datadir', '/data', '+set', 'name', name, ...graphicsArguments(profile, fps)],
+          arguments: ['-datadir', '/data', '+set', 'name', name, ...graphicsArguments(profile, fps, viewport)],
           print(value) { console.log('[Quake II WASM]', value); appendLog(value); },
           printErr(value) { console.error('[Quake II WASM]', value); appendLog(`ERROR: ${value}`); },
           setStatus(value) { if (value) loadingStatus.textContent = value; appendLog(value); },
@@ -403,6 +413,14 @@
       if (!engineModule) return;
       engineModule._Q2Web_SetInputCaptured(captured ? 1 : 0);
       if (!captured) engineModule._Q2Web_EnsureMenu();
+    });
+    window.addEventListener('wolfwasm-shell-resize', event => {
+      if (!engineModule || typeof engineModule._Q2Web_ResizeViewport !== 'function') return;
+      window.clearTimeout(resizeTimer);
+      const detail = event.detail || browserViewport();
+      resizeTimer = window.setTimeout(() => {
+        engineModule._Q2Web_ResizeViewport(Math.round(detail.cssWidth), Math.round(detail.cssHeight));
+      }, 350);
     });
 
     (async () => {

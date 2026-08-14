@@ -99,6 +99,25 @@ Q2Web_ApplyQuality(int level)
 	Cvar_SetValue("r_anisotropic", level == 0 ? 2 : (level == 1 ? 8 : 16));
 }
 
+EMSCRIPTEN_KEEPALIVE void
+Q2Web_ResizeViewport(int width, int height)
+{
+	if (!q2web_started || width < 320 || height < 200 || width > 8192 || height > 8192)
+	{
+		return;
+	}
+	if ((int)Cvar_VariableValue("r_customwidth") == width &&
+		(int)Cvar_VariableValue("r_customheight") == height)
+	{
+		return;
+	}
+	Cvar_SetValue("r_mode", -1);
+	Cvar_SetValue("r_customwidth", width);
+	Cvar_SetValue("r_customheight", height);
+	Cbuf_AddText("vid_restart\n");
+	Com_Printf("[quake2-wasm] browser viewport: %dx%d\n", width, height);
+}
+
 int
 main(int argc, char **argv)
 {
