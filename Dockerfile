@@ -11,10 +11,16 @@ LABEL org.opencontainers.image.title="Quake II WASM" \
 WORKDIR /opt/quake2
 COPY release ./release
 COPY scripts/serve-local.py ./scripts/serve-local.py
+COPY LICENSE ./LICENSE
 COPY docker/entrypoint.sh /usr/local/bin/quake2-entrypoint
 
 RUN useradd --create-home --uid 10002 --shell /usr/sbin/nologin quake2 \
     && mkdir -p /data/baseq2 /data/custom_maps /data/runtime \
+    && printf '%s\n' \
+        'Corresponding source for this image:' \
+        "https://github.com/theodorecharles/quake2-wasm/tree/${VCS_REF}" \
+        'The image contains engine/runtime code only; supply proprietary Quake II data through /data.' \
+        > /opt/quake2/SOURCE-OFFER.txt \
     && chmod 0755 /usr/local/bin/quake2-entrypoint /opt/quake2/release/q2ded \
     && chown -R quake2:quake2 /opt/quake2 /data
 
