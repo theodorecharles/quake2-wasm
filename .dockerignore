@@ -7,6 +7,10 @@ artifacts
 references
 *.pak
 *.PAK
+*.pk3
+*.PK3
+*.pk4
+*.PK4
 release/*
 !release/index.html
 !release/index.js
