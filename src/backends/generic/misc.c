@@ -29,7 +29,7 @@
 
 #include "../../common/header/shared.h"
 
-#if defined(__linux) || defined(__FreeBSD__) || defined(__NetBSD__) || defined(__OpenBSD__) || defined(__sun) || defined(__APPLE__)
+#if defined(__linux) || defined(__FreeBSD__) || defined(__NetBSD__) || defined(__OpenBSD__) || defined(__sun) || defined(__APPLE__) || defined(__EMSCRIPTEN__)
 #include <unistd.h> // readlink(), amongst others
 #endif
 
@@ -132,6 +132,11 @@ static void SetExecutablePath(char* exePath)
 	{
 		exePath[0] = '\0';
 	}
+
+#elif defined(__EMSCRIPTEN__)
+
+	// Browser builds have no executable path in the virtual filesystem.
+	exePath[0] = '\0';
 
 #else
 

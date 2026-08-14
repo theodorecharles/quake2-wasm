@@ -147,6 +147,7 @@ GetGameAPI(const game_import_t *import)
  * this is only here so the functions
  * in shared source files can link
  */
+#ifndef YQ2_STATIC_MODULES
 void
 Sys_Error(const char *error, ...)
 {
@@ -172,6 +173,7 @@ Com_Printf(const char *msg, ...)
 
 	gi.dprintf("%s", text);
 }
+#endif
 
 /* ====================================================================== */
 

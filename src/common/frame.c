@@ -27,6 +27,10 @@
 #include "header/common.h"
 #include <setjmp.h>
 
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+#endif
+
 cvar_t *developer;
 cvar_t *modder;
 cvar_t *timescale;
@@ -109,6 +113,31 @@ static YQ2_ATTR_INLINE void Sys_CpuPause(void)
 
 static void Qcommon_Frame(int usec);
 
+#ifdef __EMSCRIPTEN__
+static long long web_oldtime;
+
+static void
+Qcommon_WebFrame(void)
+{
+	long long newtime = Sys_Microseconds();
+	long long delta = newtime - web_oldtime;
+
+	if (delta < 0)
+	{
+		delta = 0;
+	}
+	else if (delta > 250000)
+	{
+		/* A backgrounded tab must not feed a multi-second step to physics. */
+		delta = 250000;
+	}
+
+	curtime = (int)(newtime / 1000ll);
+	Qcommon_Frame((int)delta);
+	web_oldtime = newtime;
+}
+#endif
+
 // ----
 
 static void
@@ -167,6 +196,10 @@ Qcommon_Buildstring(void)
 static void
 Qcommon_Mainloop(void)
 {
+#ifdef __EMSCRIPTEN__
+	web_oldtime = Sys_Microseconds();
+	emscripten_set_main_loop(Qcommon_WebFrame, 0, 1);
+#else
 	long long newtime;
 	long long oldtime = Sys_Microseconds();
 
@@ -213,6 +246,7 @@ Qcommon_Mainloop(void)
 		Qcommon_Frame(newtime - oldtime);
 		oldtime = newtime;
 	}
+#endif
 }
 
 void Qcommon_ExecConfigs(qboolean gameStartUp)

@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Quake II WebAssembly</title>
+  <style>
+    :root { color-scheme: dark; font-family: system-ui, sans-serif; background: #080705; color: #e6d9bc; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: radial-gradient(circle at 50% 20%, #392719, #080705 60%); }
+    main { width: min(1100px, 100%); padding: 24px; }
+    h1 { margin: 0 0 8px; letter-spacing: .12em; color: #d37b31; }
+    .panel { max-width: 520px; margin: 10vh auto; padding: 24px; border: 1px solid #775234; background: rgba(15, 12, 9, .96); box-shadow: 0 24px 80px #000; }
+    label { display: grid; gap: 6px; margin: 16px 0; }
+    input, select, button { font: inherit; padding: 10px 12px; border: 1px solid #775234; color: inherit; background: #17120d; }
+    button { width: 100%; color: #fff2da; background: #8e431d; cursor: pointer; font-weight: 700; }
+    button:disabled { opacity: .5; cursor: wait; }
+    details { margin: 16px 0; }
+    .status { min-height: 1.5em; color: #e0aa73; }
+    #runtime[hidden], #launcher[hidden] { display: none; }
+    #runtime { position: relative; width: 100%; }
+    canvas { display: block; width: 100%; aspect-ratio: 16 / 9; background: #000; outline: none; }
+    pre { height: 150px; margin: 10px 0 0; padding: 10px; overflow: auto; background: #050403; color: #bda989; font: 12px/1.4 ui-monospace, monospace; white-space: pre-wrap; }
+    .hint { font-size: .9rem; color: #ad9b7e; }
+  </style>
+</head>
+<body>
+<main>
+  <section id="launcher" class="panel">
+    <h1>QUAKE II</h1>
+    <p>Native Yamagi Quake II, compiled to WebAssembly. This server must be configured with owner-provided retail data.</p>
+    <label>Player name <input id="playerName" maxlength="32" autocomplete="nickname" value="Ranger"></label>
+    <details>
+      <summary>Advanced settings</summary>
+      <label>Graphics ceiling
+        <select id="quality">
+          <option value="medium">Medium</option>
+          <option value="high" selected>High</option>
+          <option value="ultra">Ultra</option>
+        </select>
+      </label>
+      <label>Frame-rate target
+        <select id="fps"><option>30</option><option selected>60</option><option>120</option></select>
+      </label>
+      <label><span><input id="dynamic" type="checkbox" checked> Dynamic quality</span></label>
+    </details>
+    <button id="play">Play</button>
+    <p id="status" class="status">Engine code is not loaded until Play.</p>
+  </section>
+
+  <section id="runtime" hidden>
+    <canvas id="canvas" tabindex="0" oncontextmenu="event.preventDefault()"></canvas>
+    <p class="hint">Click the game to capture the mouse. Press Escape to release it.</p>
+    <pre id="console" aria-label="startup console"></pre>
+  </section>
+</main>
+<script>
+  "use strict";
+  const launcher = document.querySelector("#launcher");
+  const runtime = document.querySelector("#runtime");
+  const canvas = document.querySelector("#canvas");
+  const consoleView = document.querySelector("#console");
+  const statusView = document.querySelector("#status");
+  const playButton = document.querySelector("#play");
+  const nameInput = document.querySelector("#playerName");
+  const qualitySelect = document.querySelector("#quality");
+  const fpsSelect = document.querySelector("#fps");
+  const dynamicToggle = document.querySelector("#dynamic");
+
+  nameInput.value = localStorage.getItem("quake2.playerName") || "Ranger";
+  try {
+    const saved = JSON.parse(localStorage.getItem("quake2.graphics"));
+    if (["medium", "high", "ultra"].includes(saved.profile)) qualitySelect.value = saved.profile;
+    if (["30", "60", "120"].includes(String(saved.fps))) fpsSelect.value = String(saved.fps);
+    dynamicToggle.checked = saved.dynamic !== false;
+  } catch (_) {
+    // First launch or stale preferences: keep the safe defaults from the form.
+  }
+
+  function appendLog(message) {
+    consoleView.textContent += `${message}\n`;
+    consoleView.scrollTop = consoleView.scrollHeight;
+  }
+
+  function loadEngineScript() {
+    return new Promise((resolve, reject) => {
+      if (globalThis.createQuake2Module) return resolve();
+      const script = document.createElement("script");
+      script.src = "quake2.js";
+      script.onload = resolve;
+      script.onerror = () => reject(new Error("Could not load quake2.js"));
+      document.head.append(script);
+    });
+  }
+
+  function graphicsArguments(profile, fps) {
+    const profileArgs = {
+      medium: ["+set", "r_msaa_samples", "0", "+set", "r_anisotropic", "2", "+set", "r_shadows", "0", "+set", "cl_particles", "0", "+set", "cl_lights", "0"],
+      high: ["+set", "r_msaa_samples", "2", "+set", "r_anisotropic", "8", "+set", "r_shadows", "0", "+set", "cl_particles", "1", "+set", "cl_lights", "1"],
+      ultra: ["+set", "r_msaa_samples", "4", "+set", "r_anisotropic", "16", "+set", "r_shadows", "1", "+set", "cl_particles", "1", "+set", "cl_lights", "1"]
+    };
+    return [
+      "+set", "vid_renderer", "gles3",
+      "+set", "vid_fullscreen", "0",
+      "+set", "r_mode", "-1",
+      "+set", "r_customwidth", "1280",
+      "+set", "r_customheight", "720",
+      "+set", "vid_maxfps", fps,
+      ...(profileArgs[profile] || profileArgs.high)
+    ];
+  }
+
+  function startDynamicQuality(module, ceilingName, targetFps) {
+    const names = ["medium", "high", "ultra"];
+    const ceiling = Math.max(0, names.indexOf(ceilingName));
+    let level = ceiling;
+    let windowStart = 0;
+    let frames = 0;
+    let lowWindows = 0;
+    let highWindows = 0;
+
+    function apply(next, measuredFps) {
+      level = Math.max(0, Math.min(ceiling, next));
+      module._Q2Web_ApplyQuality(level);
+      globalThis.__quake2Quality = { level, name: names[level], fps: Math.round(measuredFps * 10) / 10, targetFps };
+      console.info(`[quake2-wasm] dynamic quality=${names[level]} fps=${globalThis.__quake2Quality.fps}`);
+    }
+
+    function sample(now) {
+      requestAnimationFrame(sample);
+      if (document.hidden) {
+        windowStart = 0;
+        frames = lowWindows = highWindows = 0;
+        return;
+      }
+      if (!windowStart) {
+        windowStart = now;
+        return;
+      }
+      frames++;
+      const elapsed = now - windowStart;
+      if (elapsed < 3000) return;
+      const measured = frames * 1000 / elapsed;
+      windowStart = now;
+      frames = 0;
+      lowWindows = measured < targetFps * 0.92 ? lowWindows + 1 : 0;
+      highWindows = measured >= targetFps * 0.985 ? highWindows + 1 : 0;
+      if (lowWindows >= 2 && level > 0) {
+        apply(level - 1, measured);
+        lowWindows = highWindows = 0;
+      } else if (highWindows >= 5 && level < ceiling) {
+        apply(level + 1, measured);
+        lowWindows = highWindows = 0;
+      }
+    }
+
+    requestAnimationFrame(sample);
+  }
+
+  playButton.addEventListener("click", async () => {
+    const playerName = nameInput.value.trim() || "Ranger";
+    const profile = qualitySelect.value;
+    const fps = fpsSelect.value;
+    const dynamic = dynamicToggle.checked;
+    localStorage.setItem("quake2.playerName", playerName);
+    localStorage.setItem("quake2.graphics", JSON.stringify({ profile, fps, dynamic }));
+    playButton.disabled = true;
+    statusView.textContent = "Loading engine code…";
+
+    try {
+      await loadEngineScript();
+      launcher.hidden = true;
+      runtime.hidden = false;
+
+      const module = await createQuake2Module({
+        canvas,
+        quake2AssetManifest: "assets/manifest.json",
+        arguments: ["-datadir", "/data", "+set", "name", playerName, ...graphicsArguments(profile, fps)],
+        print: message => { console.log(message); appendLog(message); },
+        printErr: message => { console.error(message); appendLog(`ERROR: ${message}`); },
+        setStatus: message => { statusView.textContent = message; appendLog(message); },
+        onAssetError: error => {
+          launcher.hidden = false;
+          runtime.hidden = true;
+          playButton.disabled = false;
+          statusView.textContent = `Startup failed: ${error.message}`;
+        }
+      });
+      if (module.quake2AssetFailed) return;
+      if (dynamic) startDynamicQuality(module, profile, Number(fps));
+    } catch (error) {
+      console.error(error);
+      launcher.hidden = false;
+      runtime.hidden = true;
+      playButton.disabled = false;
+      statusView.textContent = `Startup failed: ${error.message}`;
+    }
+  });
+</script>
+</body>
+</html>

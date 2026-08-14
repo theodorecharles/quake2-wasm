@@ -41,6 +41,7 @@ R_Printf(int level, const char* msg, ...)
 	va_end(argptr);
 }
 
+#ifndef YQ2_STATIC_MODULES
 void
 Sys_Error(const char *error, ...)
 {
@@ -84,6 +85,7 @@ Com_Error(int code, const char *fmt, ...)
 
 	ri.Sys_Error(code, "%s", text);
 }
+#endif
 
 /* shared variables */
 refdef_t r_newrefdef;

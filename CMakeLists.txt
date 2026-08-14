@@ -72,6 +72,21 @@ option(GLES3_RENDERER "Build the GLES3 renderer" ON)
 option(SOFT_RENDERER "Build the software renderer" ON)
 option(XDG_SUPPORT "Use XDG Directories to store user data" ON)
 
+if(EMSCRIPTEN)
+	# The browser build is deliberately small and self contained. Emscripten
+	# provides SDL2 and WebGL; native shared modules, cURL and OpenAL are not
+	# available in the first single-process milestone.
+	set(CURL_SUPPORT OFF CACHE BOOL "cURL support" FORCE)
+	set(OPENAL_SUPPORT OFF CACHE BOOL "OpenAL support" FORCE)
+	set(SDL3_SUPPORT OFF CACHE BOOL "Build against SDL 3 instead of SDL2" FORCE)
+	set(GL1_RENDERER OFF CACHE BOOL "Build the GL1 renderer" FORCE)
+	set(GL3_RENDERER OFF CACHE BOOL "Build the GL3 renderer" FORCE)
+	set(GLES1_RENDERER OFF CACHE BOOL "Build the GLES1 renderer" FORCE)
+	set(GLES3_RENDERER ON CACHE BOOL "Build the GLES3 renderer" FORCE)
+	set(SOFT_RENDERER OFF CACHE BOOL "Build the software renderer" FORCE)
+	set(XDG_SUPPORT OFF CACHE BOOL "Use XDG Directories to store user data" FORCE)
+endif()
+
 set(SYSTEMDIR "" CACHE STRING "Override the system default directory")
 
 # These variables will act as our list of include folders and linker flags.
@@ -103,6 +118,10 @@ add_definitions(-DYQ2OSTYPE="${YQ2OSTYPE}")
 
 set(cpu ${CMAKE_SYSTEM_PROCESSOR})
 
+if(EMSCRIPTEN)
+	set(cpu "wasm32")
+endif()
+
 # Originally, ${CMAKE_SYSTEM_PROCESSOR} was supposed to contain the *target* CPU, according to CMake's documentation.
 # As far as I can tell this has always been broken (always returns host CPU) at least on Windows
 # (see e.g. https://cmake.org/pipermail/cmake-developers/2014-September/011405.html) and wasn't reliable on
@@ -110,7 +129,9 @@ set(cpu ${CMAKE_SYSTEM_PROCESSOR})
 # (e.g. x86_64 instead of i686). Instead of fixing this, CMake eventually updated their documentation in 3.20,
 # now it's officially the same as CMAKE_HOST_SYSTEM_PROCESSOR except when cross-compiling (where it's explicitly set)
 # So we gotta figure out the actual target CPU type ourselves..
-if(NOT (CMAKE_SYSTEM_PROCESSOR STREQUAL CMAKE_HOST_SYSTEM_PROCESSOR))
+if(EMSCRIPTEN)
+	# Keep the explicit wasm32 architecture chosen above.
+elseif(NOT (CMAKE_SYSTEM_PROCESSOR STREQUAL CMAKE_HOST_SYSTEM_PROCESSOR))
 	# special case: cross-compiling, here CMAKE_SYSTEM_PROCESSOR should be correct, hopefully
 	# (just leave cpu at ${CMAKE_SYSTEM_PROCESSOR})
 elseif(MSVC)
@@ -186,7 +207,10 @@ endif()
 # Required libraries to build the different components of the binaries. Find
 # them and add the include/linker directories and flags (in case the package
 # manager find it in a weird place).
-if (SDL3_SUPPORT)
+if(EMSCRIPTEN)
+	# -sUSE_SDL=2 supplies both the headers and the browser-side SDL library.
+	add_compile_options("-sUSE_SDL=2")
+elseif (SDL3_SUPPORT)
 	find_package(SDL3 REQUIRED)
 	add_definitions(-DUSE_SDL3)
 else()
@@ -256,13 +280,15 @@ endif()
 if(NOT MSVC)
 	list(APPEND yquake2LinkerFlags m)
 endif()
-list(APPEND yquake2LinkerFlags ${CMAKE_DL_LIBS})
+if(NOT EMSCRIPTEN)
+	list(APPEND yquake2LinkerFlags ${CMAKE_DL_LIBS})
+endif()
 
 if(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
 	if(!MSVC)
 		list(APPEND yquake2LinkerFlags "-static-libgcc")
 	endif()
-else()
+elseif(NOT EMSCRIPTEN)
 	if (NOT ${CMAKE_SYSTEM_NAME} MATCHES "Haiku")
 		list(APPEND yquake2LinkerFlags "-rdynamic")
 	else()
@@ -274,7 +300,7 @@ else()
 	endif()
 endif()
 
-if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Darwin" AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "OpenBSD" AND NOT WIN32)
+if(NOT EMSCRIPTEN AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Darwin" AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "OpenBSD" AND NOT WIN32)
 	list(APPEND yquake2LinkerFlags "-Wl,--no-undefined")
 endif()
 
@@ -329,6 +355,13 @@ set(Backends-Windows-Header
 	${BACKENDS_SRC_DIR}/windows/header/resource.h
 	)
 
+set(Backends-Web-Source
+	${BACKENDS_SRC_DIR}/web/main.c
+	${BACKENDS_SRC_DIR}/web/network.c
+	${BACKENDS_SRC_DIR}/web/system.c
+	${BACKENDS_SRC_DIR}/web/hunk.c
+	)
+
 set(REF-Windows-Source
 	${BACKENDS_SRC_DIR}/windows/shared/hunk.c
 	)
@@ -338,7 +371,10 @@ set(REF-Unix-Source
 	)
 
 # Set the nessesary platform specific source
-if(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+if(EMSCRIPTEN)
+	set(Platform-Specific-Source ${Backends-Web-Source})
+	set(REF-Platform-Specific-Source)
+elseif(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
 	set(Platform-Specific-Source ${Backends-Windows-Source} ${Backends-Windows-Header})
 	set(REF-Platform-Specific-Source ${REF-Windows-Source})
 else()
@@ -730,7 +766,82 @@ set(SOFT-Header
 
 # Main Quake 2 executable
 
-if(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+if(EMSCRIPTEN)
+	# Native Yamagi loads the game and renderer as shared objects. Browsers
+	# cannot use that dlopen model, so link the original modules into one WASM
+	# program and let the web system backend resolve their API entry points.
+	set(Web-Game-Source ${Game-Source})
+	list(REMOVE_ITEM Web-Game-Source
+		${COMMON_SRC_DIR}/shared/flash.c
+		${COMMON_SRC_DIR}/shared/rand.c
+		${COMMON_SRC_DIR}/shared/shared.c)
+
+	set(Web-GLES3-Source ${GL3-Source})
+	list(REMOVE_ITEM Web-GLES3-Source
+		${COMMON_SRC_DIR}/shared/shared.c
+		${COMMON_SRC_DIR}/md4.c)
+
+	# Keep the compile-time namespaces that shared-object boundaries normally
+	# provide. A few private globals deliberately have the same names in the
+	# engine, game and renderer modules; renaming only those private module
+	# symbols lets the native module APIs remain unchanged in the static WASM
+	# executable.
+	add_library(web_game OBJECT ${Web-Game-Source} ${Game-Header})
+	target_compile_definitions(web_game PRIVATE
+		YQ2_STATIC_MODULES=1
+		maxclients=game_maxclients
+		dedicated=game_dedicated)
+
+	add_library(web_gles3 OBJECT
+		${Web-GLES3-Source}
+		${Glad-GLES3-Source}
+		${GL3-Header}
+		${Glad-GLES3-Header})
+	target_compile_definitions(web_gles3 PRIVATE
+		YQ2_STATIC_MODULES=1
+		YQ2_GL3_GLES3=1
+		YQ2_GL3_GLES=1
+		STB_IMAGE_STATIC=1
+		modes=ref_modes
+		vid_gamma=ref_vid_gamma
+		vid_fullscreen=ref_vid_fullscreen)
+	target_include_directories(web_gles3 PRIVATE
+		${CMAKE_SOURCE_DIR}/src/client/refresh/gl3/glad-gles3/include)
+
+	add_executable(quake2
+		${Client-Source}
+		${Client-SDL-Source}
+		${Client-Header}
+		${Platform-Specific-Source}
+		${Backends-Generic-Source}
+		$<TARGET_OBJECTS:web_game>
+		$<TARGET_OBJECTS:web_gles3>)
+
+	target_compile_definitions(quake2 PRIVATE
+		YQ2_WEB=1)
+	target_link_libraries(quake2 ${yquake2LinkerFlags})
+	target_link_options(quake2 PRIVATE
+		"-sUSE_SDL=2"
+		"-sMIN_WEBGL_VERSION=2"
+		"-sMAX_WEBGL_VERSION=2"
+		"-sFULL_ES3=1"
+		"-sALLOW_MEMORY_GROWTH=1"
+		"-sINITIAL_MEMORY=268435456"
+		"-sMAXIMUM_MEMORY=2147483648"
+		"-sSTACK_SIZE=8388608"
+		"-sFORCE_FILESYSTEM=1"
+		"-sEXIT_RUNTIME=0"
+		"-sMODULARIZE=1"
+		"-sEXPORT_NAME=createQuake2Module"
+		"-sENVIRONMENT=web"
+		"-sEXPORTED_RUNTIME_METHODS=['FS']"
+		"-lidbfs.js"
+		"--pre-js=${CMAKE_SOURCE_DIR}/web/pre.js")
+	set_target_properties(quake2 PROPERTIES
+		SUFFIX ".js"
+		RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/release)
+	configure_file(web/index.html ${CMAKE_BINARY_DIR}/release/index.html COPYONLY)
+elseif(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
 	add_executable(yquake2 WIN32 ${Client-Source} ${Client-SDL-Source} ${Client-Header}
 			${Platform-Specific-Source} ${Backends-Generic-Source})
 	set_target_properties(yquake2 PROPERTIES
@@ -767,6 +878,8 @@ else()
 		target_link_libraries(quake2 SDL3::SDL3)
 	endif()
 endif()
+
+if(NOT EMSCRIPTEN)
 
 # Quake 2 Dedicated Server
 add_executable(q2ded ${Server-Source} ${Server-Header} ${Platform-Specific-Source}
@@ -893,3 +1006,5 @@ if(SDL3_SUPPORT)
 endif()
 
 endif()
+
+endif() # NOT EMSCRIPTEN

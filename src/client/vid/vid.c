@@ -332,6 +332,10 @@ VID_GetRendererLibPath(const char *renderer, char *path, size_t len)
 qboolean
 VID_HasRenderer(const char *renderer)
 {
+#ifdef __EMSCRIPTEN__
+	/* The GLES3 renderer is linked into the single browser module. */
+	return strcmp(renderer, "gles3") == 0;
+#else
 	char reflib_path[MAX_OSPATH] = {0};
 	VID_GetRendererLibPath(renderer, reflib_path, sizeof(reflib_path));
 
@@ -341,6 +345,7 @@ VID_HasRenderer(const char *renderer)
 	}
 
 	return false;
+#endif
 }
 
 /*
@@ -595,7 +600,13 @@ VID_Init(void)
 	// Console variables
 	vid_gamma = Cvar_Get("vid_gamma", "1.0", CVAR_ARCHIVE);
 	vid_fullscreen = Cvar_Get("vid_fullscreen", "0", CVAR_ARCHIVE);
-	vid_renderer = Cvar_Get("vid_renderer", "gl3", CVAR_ARCHIVE);
+	vid_renderer = Cvar_Get("vid_renderer",
+#ifdef __EMSCRIPTEN__
+		"gles3",
+#else
+		"gl3",
+#endif
+		CVAR_ARCHIVE);
 
 	// Commands
 	Cmd_AddCommand("vid_restart", VID_Restart_f);
