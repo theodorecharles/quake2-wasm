@@ -25,18 +25,13 @@ bundle. The generated artifacts are:
 - `build-web/release/quake2.js`
 - `build-web/release/quake2.wasm`
 
-The static launcher, private owner-data path, HTTP code delivery, JavaScript
-syntax, and WebAssembly structure have been verified. A live Chrome run has not yet been
-completed because the Chrome control connection reported exactly:
-
-```text
-Browser is not available: chrome
-```
-
-The portfolio coordinator will perform the one serialized Chrome smoke test.
-Therefore engine initialization, the title/menu, an actual level, input, and
-audio are **built but not yet browser-verified**. Do not promote them to working
-milestones until that smoke test supplies evidence.
+The static launcher, private owner-data path, HTTP code delivery, JavaScript,
+and WebAssembly structure have been verified. Chrome loaded the rebuilt
+launcher and showed the expected local-folder gate without a browser error.
+The automation extension was not permitted to attach local files, so the
+owner-data launch remains a short manual smoke rather than a playability claim.
+Engine initialization, the title/menu, an actual level, input, and audio are
+**built but not yet browser-verified**.
 
 ### Milestone ledger
 
@@ -44,7 +39,8 @@ milestones until that smoke test supplies evidence.
 | --- | --- | --- |
 | Substantial native source compiles | Passed | 137 C compilation/link steps complete under Emscripten |
 | `.wasm` and launcher produced | Passed | `quake2.js` and validated `quake2.wasm` in `build-web/release` |
-| Engine initializes in Chrome | Pending | Chrome connection unavailable during this lane |
+| Launcher initializes in Chrome | Passed | real Chrome showed the folder-selection gate and disabled Play state |
+| Engine initializes in Chrome | Pending | automated local-file selection was denied; manual owner-data smoke required |
 | Retail resources load in engine | Pending | local header/size/hash validation passed; runtime load not observed |
 | Authentic title/menu appears | Pending | renderer and data are linked/prepared but not visually observed |
 | Single-player level renders | Pending | in-process loopback implementation is present but not exercised in Chrome |
