@@ -32,5 +32,11 @@ if [[ ! -x "$framework_dir/scripts/install-browser-package.sh" ]]; then
   exit 1
 fi
 "$framework_dir/scripts/install-browser-package.sh" "$repo_dir/build-web/release/shared-shell" copy
+if ! command -v magick >/dev/null 2>&1; then
+  echo "ImageMagick is required to build authentic Quake II PWA icons." >&2
+  exit 1
+fi
+magick "$repo_dir/stuff/icon/Quake2.png" -resize 192x192 "$repo_dir/build-web/release/quake2-192.png"
+cp "$repo_dir/stuff/icon/Quake2.png" "$repo_dir/build-web/release/quake2-512.png"
 
 echo "Web bundle: $repo_dir/build-web/release"

@@ -5,6 +5,15 @@
   "description": "Play native-source Quake II with your legally owned baseq2 PAK files.",
   "loadingTitle": "Starting Quake II…",
   "icon": "/quake2.ico",
+  "pwa": {
+    "shortName": "Quake II",
+    "themeColor": "#c67535",
+    "backgroundColor": "#000000",
+    "icons": [
+      { "src": "/quake2-192.png", "sizes": "192x192", "type": "image/png" },
+      { "src": "/quake2-512.png", "sizes": "512x512", "type": "image/png" }
+    ]
+  },
   "adapter": "/game-adapter.js",
   "displayMode": "dynamic",
   "nativeManaged": true,
@@ -14,6 +23,7 @@
   "pixelated": false,
   "maxDpr": 1,
   "pointerLock": true,
+  "fullscreen": true,
   "identity": true,
   "advanced": true,
   "graphics": true,
