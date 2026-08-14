@@ -56,7 +56,7 @@ const m=JSON.parse(fs.readFileSync(process.argv[2]));
 const p=JSON.parse(fs.readFileSync(process.argv[3]));
 if(c.id!=="quake2"||c.displayMode!=="dynamic"||c.nativeManaged!==true||c.syncBackbuffer!==false)process.exit(1);
 if(m.namespace!=="quake2-registered"||m.files.length!==3||m.files.some(f=>!f.sha256||f.magic!=="PACK"))process.exit(1);
-if(p.package!=="@wasm-game-framework/browser"||p.version!=="0.5.0"||!p.bootstrapSha256)process.exit(1);
+if(p.package!=="@wasm-game-framework/browser"||p.version!=="0.5.1"||!p.bootstrapSha256)process.exit(1);
 ' "$release_dir/wasm-game.json" "$release_dir/wasm-game-data.json" "$release_dir/shared-shell/wasm-game-framework.json"
 
 grep -Fq 'grab = grab && q2web_input_captured' "$repo_dir/src/client/vid/glimp_sdl2.c"
@@ -90,4 +90,4 @@ if grep -R -F '/home/ted/' "$release_dir" "$repo_dir/web" "$repo_dir/build-web.s
 fi
 
 git -C "$repo_dir" diff --check
-echo 'Quake II web build passed framework 0.5, input, aspect, branding, audio, and owner-data boundary checks.'
+echo 'Quake II web build passed framework 0.5.1, input, aspect, branding, audio, and owner-data boundary checks.'
