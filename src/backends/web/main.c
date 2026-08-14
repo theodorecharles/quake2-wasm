@@ -202,7 +202,7 @@ main(int argc, char **argv)
 		}
 	}
 
-	printf("[quake2-wasm] browser filesystem ready; starting Yamagi Quake II\n");
+	printf("[quake2-wasm] browser filesystem ready; starting Quake II\n");
 	Qcommon_Init(argc, argv);
 	q2web_started = true;
 	return 0;

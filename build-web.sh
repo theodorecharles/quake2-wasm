@@ -20,6 +20,7 @@ for retail_name in pak0.pak pak1.pak pak2.pak; do
 done
 rm -f "$repo_dir/build-web/release/assets/manifest.json"
 rmdir "$repo_dir/build-web/release/assets/baseq2" "$repo_dir/build-web/release/assets" 2>/dev/null || true
+rm -f "$repo_dir/build-web/release/index.html"
 
 emcmake cmake -S "$repo_dir" -B "$repo_dir/build-web" -G Ninja \
   -DCMAKE_BUILD_TYPE=Release

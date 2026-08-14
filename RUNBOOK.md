@@ -18,12 +18,16 @@ and asset output directories are ignored by Git.
 ## Current status — 2026-08-14
 
 The native client, base game module, in-process server, SDL2 input/audio path,
-and Yamagi GLES3 renderer compile and link into a reproducible WebAssembly
-bundle. The generated artifacts are:
+and OpenGL ES 3 renderer compile and link into a reproducible WebAssembly
+bundle. The downstream-generated artifacts are:
 
-- `build-web/release/index.html`
 - `build-web/release/quake2.js`
 - `build-web/release/quake2.wasm`
+- `build-web/release/wasm-game.json`
+- `build-web/release/game-adapter.js`
+
+The canonical document, launcher, loading surface, and runtime canvas are owned
+by wasm-game-framework 0.5.0 and served as `/` by its container server.
 
 The shared framework's Docker server validates the persistent `/data` volume
 against `wasm-game-data.json`. If data is missing, only the one-time setup UI
@@ -46,7 +50,7 @@ saves, and remote multiplayer still need their dedicated checks.
 | Substantial native source compiles | Passed | 137 C compilation/link steps complete under Emscripten |
 | `.wasm` and launcher produced | Passed | `quake2.js` and validated `quake2.wasm` in `build-web/release` |
 | Launcher initializes in Chrome | Passed | real Chrome saw ready container data, restored all three PAKs from IndexedDB, hid setup, and enabled Play |
-| Engine initializes in Chrome | Passed | browser log reached `==== Yamagi Quake II Initialized ====` |
+| Engine initializes in Chrome | Passed | browser log reached `==== Quake II Initialized ====` |
 | Retail resources load in engine | Passed | runtime loaded `base2` models, images, clients, and sky from owner PAKs |
 | Authentic title/menu appears | Partial | attract sequence advances correctly; menu navigation not checked in this basic pass |
 | Single-player level renders | Passed | Chromium captured live `base2` combat with HUD and enemies |
@@ -167,7 +171,8 @@ ignored. The normal browser flow does not require this helper.
 ## Run
 
 ```bash
-python3 -m http.server 8082 --directory build-web/release
+EMSDK_DIR=/home/ted/emsdk ./scripts/build-image.sh quake2-wasm:dev
+docker run --rm -p 127.0.0.1:8082:8088 -v quake2-data:/data quake2-wasm:dev
 ```
 
 Open this exact local URL in Chrome:
@@ -176,8 +181,9 @@ Open this exact local URL in Chrome:
 http://127.0.0.1:8082/
 ```
 
-Do not open `index.html` directly with a `file:` URL. Fetch, IndexedDB,
-IndexedDB, the WASM MIME type, and WebGL require an HTTP origin.
+The downstream intentionally has no `index.html`; the framework server owns
+the document. Do not use a plain static or `file:` URL because provisioning,
+IndexedDB, the WASM MIME type, and WebGL require the framework HTTP origin.
 
 ## Serialized Chrome smoke procedure
 
@@ -200,9 +206,9 @@ Only one portfolio game should own Chrome at a time.
    ```text
    [quake2-wasm] Restoring browser-local settings and saves…
    [quake2-wasm] Restoring owner-provided Quake II data from browser-private storage…
-   [quake2-wasm] Starting Yamagi Quake II…
-   [quake2-wasm] browser filesystem ready; starting Yamagi Quake II
-   ==== Yamagi Quake II Initialized ====
+   [quake2-wasm] Starting Quake II…
+   [quake2-wasm] browser filesystem ready; starting Quake II
+   ==== Quake II Initialized ====
    ```
 
 6. Confirm the authentic Quake II attract/title/menu renders. Press Escape if
@@ -242,7 +248,7 @@ validator rejects an empty owner-data directory.
 ## Browser-facing behavior
 
 - Player identity is collected and saved before any engine code is loaded.
-- The web shell disappears after Play; the native Yamagi attract/menu UI is the
+- The web shell disappears after Play; the native Quake II attract/menu UI is the
   game interface rather than a web reimplementation.
 - The graphics ceiling is applied through real engine cvars. Optional adaptive
   quality samples browser frame cadence in three-second windows and only changes

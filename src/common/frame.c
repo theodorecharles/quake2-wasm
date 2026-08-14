@@ -162,7 +162,11 @@ Qcommon_Buildstring(void)
 	const char* versionString;
 
 
+#ifdef YQ2_WEB
+	versionString = va("Quake II WebAssembly v%s", YQ2VERSION);
+#else
 	versionString = va("Yamagi Quake II v%s", YQ2VERSION);
+#endif
 	verLen = strlen(versionString);
 
 	printf("\n%s\n", versionString);
@@ -292,7 +296,11 @@ static qboolean checkForHelp(int argc, char **argv)
 		{
 			if (Q_stricmp(arg, helpArgs[h]) == 0)
 			{
+#ifdef YQ2_WEB
+				printf("Quake II WebAssembly v%s\n", YQ2VERSION);
+#else
 				printf("Yamagi Quake II v%s\n", YQ2VERSION);
+#endif
 				printf("Most interesting commandline arguments:\n");
 				printf("-h or --help: Show this help\n");
 				printf("-cfgdir <path>\n");
@@ -470,7 +478,11 @@ Qcommon_Init(int argc, char **argv)
 	}
 #endif
 
+#ifdef YQ2_WEB
+	Com_Printf("==== Quake II Initialized ====\n\n");
+#else
 	Com_Printf("==== Yamagi Quake II Initialized ====\n\n");
+#endif
 	Com_Printf("*************************************\n\n");
 
 	// Call the main loop

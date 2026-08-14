@@ -662,7 +662,11 @@ Con_DrawConsole(float frac)
 	SCR_AddDirtyPoint(0, 0);
 	SCR_AddDirtyPoint(viddef.width - 1, lines - 1);
 
+#ifdef YQ2_WEB
+	Com_sprintf(version, sizeof(version), "Quake II");
+#else
 	Com_sprintf(version, sizeof(version), "Yamagi Quake II v%s", YQ2VERSION);
+#endif
 
 	verLen = strlen(version);
 

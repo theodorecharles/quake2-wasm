@@ -1,0 +1,41 @@
+{
+  "id": "quake2",
+  "title": "Quake II",
+  "kicker": "id Tech 2",
+  "description": "Play native-source Quake II with your legally owned baseq2 PAK files.",
+  "loadingTitle": "Starting Quake II…",
+  "icon": "/quake2.ico",
+  "adapter": "/game-adapter.js",
+  "displayMode": "dynamic",
+  "nativeManaged": true,
+  "syncBackbuffer": false,
+  "canvasWidth": 1280,
+  "canvasHeight": 720,
+  "pixelated": false,
+  "maxDpr": 1,
+  "pointerLock": true,
+  "identity": true,
+  "advanced": true,
+  "graphics": true,
+  "fps": true,
+  "dynamicQuality": true,
+  "profiles": [
+    { "value": "medium", "label": "Medium" },
+    { "value": "high", "label": "High" },
+    { "value": "ultra", "label": "Ultra" }
+  ],
+  "defaultProfile": "high",
+  "fpsTargets": [30, 60, 120],
+  "defaultFps": 60,
+  "defaultDynamicQuality": true,
+  "defaultPlayerName": "Ranger",
+  "preferencesNamespace": "quake2",
+  "provisioningText": "Install pak0.pak, pak1.pak, and pak2.pak from your legally owned baseq2 folder.",
+  "theme": {
+    "accent": "#c67535",
+    "accent-strong": "#f2b16b",
+    "border": "#724827",
+    "panel": "rgb(15 11 8 / 96%)",
+    "field": "#18110c"
+  }
+}

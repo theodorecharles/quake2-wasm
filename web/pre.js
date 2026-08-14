@@ -1,4 +1,4 @@
-/* Browser filesystem bootstrap for the native-source Yamagi build. */
+/* Browser filesystem bootstrap for the native-source Quake II build. */
 
 Module.preRun = Module.preRun || [];
 Module.preRun.push(function quake2PrepareFilesystem() {
@@ -58,7 +58,7 @@ Module.preRun.push(function quake2PrepareFilesystem() {
     });
     FS.chmod('/data/baseq2', 0o555);
     FS.chmod('/data', 0o555);
-    status('Starting Yamagi Quake II…');
+    status('Starting Quake II…');
   })().catch(error => {
     console.error('[quake2-wasm] startup failed', error);
     Module.quake2AssetFailed = true;
