@@ -27,7 +27,7 @@ bundle. The downstream-generated artifacts are:
 - `build-web/release/game-adapter.js`
 
 The canonical document, launcher, loading surface, and runtime canvas are owned
-by wasm-game-framework 0.5.2 and served as `/` by its container server.
+by wasm-game-framework 0.5.3 and served as `/` by its container server.
 
 The shared framework's Docker server validates the persistent `/data` volume
 against `wasm-game-data.json`. If data is missing, only the one-time setup UI
