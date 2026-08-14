@@ -8,8 +8,8 @@ framework_dir="${WASM_FRAMEWORK_DIR:-$repo_dir/../wasm-game-framework}"
 "$repo_dir/build-web.sh"
 
 for required in quake2.js quake2.wasm quake2.ico quake2-192.png quake2-512.png game-adapter.js wasm-game.json wasm-game-data.json \
-  shared-shell/wolfwasm-shell.js shared-shell/wolfwasm-shell.css \
-  shared-shell/wolfwasm-bootstrap.js shared-shell/wasm-game-framework.json; do
+  shared-shell/wasm-game-framework.js shared-shell/wasm-game-framework.css \
+  shared-shell/wasm-game-bootstrap.js shared-shell/wasm-game-framework.json; do
   [[ -f "$release_dir/$required" ]] || { echo "Missing Quake II web artifact: $required" >&2; exit 1; }
 done
 
@@ -21,13 +21,13 @@ fi
 node --check "$release_dir/quake2.js"
 node --check "$release_dir/game-adapter.js"
 node --check "$repo_dir/web/pre.js"
-node --check "$release_dir/shared-shell/wolfwasm-bootstrap.js"
+node --check "$release_dir/shared-shell/wasm-game-bootstrap.js"
 wasm-validate "$release_dir/quake2.wasm"
 cmp "$repo_dir/web/game-adapter.js" "$release_dir/game-adapter.js"
 cmp "$repo_dir/web/wasm-game.json" "$release_dir/wasm-game.json"
-cmp "$framework_dir/dist/wolfwasm-shell.js" "$release_dir/shared-shell/wolfwasm-shell.js"
-cmp "$framework_dir/dist/wolfwasm-shell.css" "$release_dir/shared-shell/wolfwasm-shell.css"
-cmp "$framework_dir/dist/wolfwasm-bootstrap.js" "$release_dir/shared-shell/wolfwasm-bootstrap.js"
+cmp "$framework_dir/dist/wasm-game-framework.js" "$release_dir/shared-shell/wasm-game-framework.js"
+cmp "$framework_dir/dist/wasm-game-framework.css" "$release_dir/shared-shell/wasm-game-framework.css"
+cmp "$framework_dir/dist/wasm-game-bootstrap.js" "$release_dir/shared-shell/wasm-game-bootstrap.js"
 
 for marker in \
   'globalThis.WasmGameAdapter' \
@@ -43,7 +43,7 @@ for marker in \
 done
 
 for marker in \
-  'WolfWasmShell.mountOwnerFiles' \
+  'WasmGameFramework.mountOwnerFiles' \
   "root: '/data/baseq2'" \
   "mode: 'memfs'"; do
   grep -Fq "$marker" "$repo_dir/web/pre.js" || { echo "Missing Quake II owner-data mount marker: $marker" >&2; exit 1; }
@@ -56,7 +56,7 @@ const m=JSON.parse(fs.readFileSync(process.argv[2]));
 const p=JSON.parse(fs.readFileSync(process.argv[3]));
 if(c.id!=="quake2"||c.displayMode!=="dynamic"||c.nativeManaged!==true||c.syncBackbuffer!==false||c.fullscreen!==true||c.pwa?.icons?.length!==2)process.exit(1);
 if(m.namespace!=="quake2-registered"||m.files.length!==3||m.files.some(f=>!f.sha256||f.magic!=="PACK"))process.exit(1);
-if(p.package!=="@wasm-game-framework/browser"||p.version!=="0.6.1"||!p.bootstrapSha256)process.exit(1);
+if(p.package!=="@wasm-game-framework/browser"||p.version!=="0.7.0"||!p.bootstrapSha256)process.exit(1);
 ' "$release_dir/wasm-game.json" "$release_dir/wasm-game-data.json" "$release_dir/shared-shell/wasm-game-framework.json"
 
 grep -Fq 'grab = grab && q2web_input_captured' "$repo_dir/src/client/vid/glimp_sdl2.c"
@@ -90,4 +90,4 @@ if grep -R -F '/home/ted/' "$release_dir" "$repo_dir/web" "$repo_dir/build-web.s
 fi
 
 git -C "$repo_dir" diff --check
-echo 'Quake II web build passed framework 0.6.1, input, aspect, branding, audio, PWA, and owner-data boundary checks.'
+echo 'Quake II web build passed framework 0.7.0, input, aspect, branding, audio, PWA, and owner-data boundary checks.'

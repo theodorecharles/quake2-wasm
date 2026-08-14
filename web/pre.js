@@ -35,7 +35,7 @@ Module.preRun.push(function quake2PrepareFilesystem() {
 
   addRunDependency(dependency);
   (async function prepare() {
-    if (!globalThis.WolfWasmShell) throw new Error('Shared wasm-game-framework package is unavailable.');
+    if (!globalThis.WasmGameFramework) throw new Error('Shared wasm-game-framework package is unavailable.');
     const entries = await validatePreparedEntries(Module.quake2OwnerData);
 
     FS.mkdirTree('/data/baseq2');
@@ -46,7 +46,7 @@ Module.preRun.push(function quake2PrepareFilesystem() {
     await new Promise((resolve, reject) => FS.syncfs(true, error => error ? reject(error) : resolve()));
 
     status('Mounting registered Quake II data from this browser…');
-    await WolfWasmShell.mountOwnerFiles(FS, entries, {
+    await WasmGameFramework.mountOwnerFiles(FS, entries, {
       root: '/data/baseq2',
       mode: 'memfs',
       chunkBytes: 16 * 1024 * 1024,
