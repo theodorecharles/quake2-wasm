@@ -7,7 +7,7 @@ modern controls, graphics profiles, and the original in-game UI.
 
 The retail game files are not included. A deployment stores the three supported
 PAKs in its persistent `/data` volume. If they are absent, the first-run screen
-lets the administrator install a legally owned `baseq2` folder into that
+lets the administrator install a `baseq2` folder into that
 container. Server validation happens before the files persist; each browser
 then downloads and privately caches them once for fast later loads.
 

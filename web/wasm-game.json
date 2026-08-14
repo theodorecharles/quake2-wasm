@@ -2,7 +2,7 @@
   "id": "quake2",
   "title": "Quake II",
   "kicker": "id Tech 2",
-  "description": "Play native-source Quake II with your legally owned baseq2 PAK files.",
+  "description": "Play native-source Quake II in the browser.",
   "loadingTitle": "Starting Quake II…",
   "icon": "/quake2.ico",
   "pwa": {
@@ -40,7 +40,7 @@
   "defaultDynamicQuality": true,
   "defaultPlayerName": "Ranger",
   "preferencesNamespace": "quake2",
-  "provisioningText": "Install pak0.pak, pak1.pak, and pak2.pak from your legally owned baseq2 folder.",
+  "provisioningText": "Install pak0.pak, pak1.pak, and pak2.pak from the baseq2 folder.",
   "theme": {
     "accent": "#c67535",
     "accent-strong": "#f2b16b",

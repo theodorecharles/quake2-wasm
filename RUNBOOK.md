@@ -134,7 +134,7 @@ Retail PAKs and user-writable state never share a mount.
 
 The standalone `baseq2/video/*.cin` cinematics and soundtrack files are not in
 the current manifest. They are optional for the first title/menu/level smoke
-milestone and must remain owner-supplied if added later.
+milestone and must remain separately supplied if added later.
 
 ## Build
 
@@ -205,7 +205,7 @@ Only one portfolio game should own Chrome at a time.
 
    ```text
    [quake2-wasm] Restoring browser-local settings and saves…
-   [quake2-wasm] Restoring owner-provided Quake II data from browser-private storage…
+   [quake2-wasm] Preparing Quake II…
    [quake2-wasm] Starting Quake II…
    [quake2-wasm] browser filesystem ready; starting Quake II
    ==== Quake II Initialized ====
@@ -278,9 +278,9 @@ validator rejects an empty owner-data directory.
 4. Replace the full MEMFS PAK materialization with a seekable, range-backed or
    chunked read-only filesystem before production scale; preserve exact
    allowlisting and browser-local cache semantics.
-5. Add owner-supplied standalone cinematics and OGG soundtrack through a second
+5. Add standalone cinematics and OGG soundtrack through a second
    exact manifest only after the core level smoke passes.
-6. Add expansion game modules/data as separately owner-provided manifests if
+6. Add expansion game modules/data as separate manifests if
    The Reckoning or Ground Zero enters scope.
 
 No Docker image, public deployment, remote multiplayer server, bots, aimbot, or
