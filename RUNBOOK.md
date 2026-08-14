@@ -30,8 +30,12 @@ and WebAssembly structure have been verified. A loopback-only Docker-lab path
 at `?localdata=1` imports the three read-only owner PAKs through `/local-data/`,
 runs the exact same validation, and stores them in private CacheStorage. Chrome
 confirmed this path reaches the enabled Play state without a picker.
-Engine initialization, the title/menu, an actual level, input, and audio are
-**built but not yet browser-verified**.
+Chrome then started the native engine, loaded `base2` through the in-process
+server, and rendered live single-player combat with the authentic HUD. The
+first load spends several seconds on the attract/demo transition and map data;
+the temporary black canvas during that interval is expected. Sustained physical
+input, pointer lock, audio, saves, and remote multiplayer still need their
+dedicated checks.
 
 ### Milestone ledger
 
@@ -40,11 +44,11 @@ Engine initialization, the title/menu, an actual level, input, and audio are
 | Substantial native source compiles | Passed | 137 C compilation/link steps complete under Emscripten |
 | `.wasm` and launcher produced | Passed | `quake2.js` and validated `quake2.wasm` in `build-web/release` |
 | Launcher initializes in Chrome | Passed | real Chrome auto-imported all three PAKs and enabled Play |
-| Engine initializes in Chrome | Pending | automated local-file selection was denied; manual owner-data smoke required |
-| Retail resources load in engine | Pending | local header/size/hash validation passed; runtime load not observed |
-| Authentic title/menu appears | Pending | renderer and data are linked/prepared but not visually observed |
-| Single-player level renders | Pending | in-process loopback implementation is present but not exercised in Chrome |
-| Keyboard/mouse work | Pending | native SDL2 backend is linked but not manually exercised |
+| Engine initializes in Chrome | Passed | browser log reached `==== Yamagi Quake II Initialized ====` |
+| Retail resources load in engine | Passed | runtime loaded `base2` models, images, clients, and sky from owner PAKs |
+| Authentic title/menu appears | Partial | attract sequence advances correctly; menu navigation not checked in this basic pass |
+| Single-player level renders | Passed | Chromium captured live `base2` combat with HUD and enemies |
+| Keyboard/mouse work | Partial | launcher/menu input works; sustained movement/pointer-lock pass remains |
 | Sound works | Pending | SDL2 audio is linked but browser audio unlock is not manually exercised |
 | Remote multiplayer works | Not implemented | needs a WebSocket-to-UDP transport/proxy |
 
@@ -243,8 +247,8 @@ validator rejects an empty owner-data directory.
 
 ## Residual blockers and next work
 
-1. Run the serialized Chrome smoke above and fix only initialization blockers;
-   do not start a renderer-polish loop in this milestone.
+1. Finish the physical input, pointer-lock, audio, and save-persistence portions
+   of the serialized Chrome smoke; do not start a renderer-polish loop yet.
 2. Implement an explicit WebSocket client transport and server-side UDP proxy
    before claiming remote multiplayer. Server wake/keep-alive, human counts,
    an eight-player default, and bot-yield policy belong with that server work,
