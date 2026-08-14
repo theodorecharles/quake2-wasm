@@ -32,7 +32,7 @@ runs the exact same validation, and stores them in browser-private IndexedDB. Ch
 confirmed this path reaches the enabled Play state without a picker.
 Chrome then started the native engine, loaded `base2` through the in-process
 server, and rendered live single-player combat with the authentic HUD. Native
-telemetry reported the complete WASD contract (`127/127`) after startup config,
+telemetry reported the complete WASD/aspect contract (`255/255`) after startup config,
 and SDL audio produced nonzero samples after the browser gesture. The first load
 spends several seconds on the attract/demo transition and map data; the
 temporary black canvas during that interval is expected. Physical pointer lock,
@@ -49,7 +49,7 @@ saves, and remote multiplayer still need their dedicated checks.
 | Retail resources load in engine | Passed | runtime loaded `base2` models, images, clients, and sky from owner PAKs |
 | Authentic title/menu appears | Partial | attract sequence advances correctly; menu navigation not checked in this basic pass |
 | Single-player level renders | Passed | Chromium captured live `base2` combat with HUD and enemies |
-| Keyboard/mouse work | Passed with gesture caveat | telemetry is `127/127`: WASD, Space, E, mouse fire/look, sensitivity 4, A/Z legacy pitch removed; physical pointer lock still needs a user click |
+| Keyboard/mouse work | Passed with gesture caveat | telemetry is `255/255`: WASD, Space, E, mouse fire/look, sensitivity 4, A/Z legacy pitch removed, Hor+ widescreen enabled; physical pointer lock still needs a user click |
 | Sound works | Passed | SDL callback telemetry produced nonzero samples after canvas interaction |
 | Remote multiplayer works | Not implemented | needs a WebSocket-to-UDP transport/proxy |
 

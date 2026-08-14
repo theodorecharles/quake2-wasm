@@ -302,6 +302,7 @@
         '+set', 'r_customwidth', String(viewport.width),
         '+set', 'r_customheight', String(viewport.height),
         '+set', 'vid_maxfps', String(fps),
+        '+set', 'horplus', '1',
         '+set', 'in_grab', '2',
         ...(profiles[profile] || profiles.high)
       ];
@@ -385,7 +386,13 @@
           if (typeof engineModule._Q2Web_ControlsMask === 'function') {
             const mask = engineModule._Q2Web_ControlsMask();
             document.documentElement.dataset.quake2ControlsMask = String(mask);
-            document.documentElement.dataset.quake2ControlsValid = String(mask === 127);
+            document.documentElement.dataset.quake2ControlsValid = String(mask === 255);
+          }
+          if (typeof engineModule._Q2Web_RenderWidth === 'function') {
+            document.documentElement.dataset.quake2RenderSize = [
+              engineModule._Q2Web_RenderWidth(),
+              engineModule._Q2Web_RenderHeight()
+            ].join('x');
           }
         }, 250);
       } catch (error) {

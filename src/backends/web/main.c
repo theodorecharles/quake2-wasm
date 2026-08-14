@@ -39,6 +39,7 @@ Q2Web_ConfigureControls(void)
 	Key_SetBinding('z', "");
 	Cvar_Set("sensitivity", "4");
 	Cvar_Set("m_filter", "0");
+	Cvar_Set("horplus", "1");
 	if (!q2web_controls_announced)
 	{
 		Com_Printf("[quake2-wasm] browser controls: WASD, sensitivity 4, mouse look/fire, Space jump, E use\n");
@@ -78,7 +79,20 @@ Q2Web_ControlsMask(void)
 	if (keybindings['z'] && keybindings['z'][0] == '\0') mask |= 16;
 	if (Cvar_VariableValue("sensitivity") == 4.0f) mask |= 32;
 	if (Cvar_VariableValue("m_filter") == 0.0f) mask |= 64;
+	if (Cvar_VariableValue("horplus") == 1.0f) mask |= 128;
 	return mask;
+}
+
+EMSCRIPTEN_KEEPALIVE int
+Q2Web_RenderWidth(void)
+{
+	return viddef.width;
+}
+
+EMSCRIPTEN_KEEPALIVE int
+Q2Web_RenderHeight(void)
+{
+	return viddef.height;
 }
 
 EMSCRIPTEN_KEEPALIVE void
